@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Blog Bulunamadı";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="error-page">
+                <div class="mb-4">
+                    <i class="fas fa-search fa-5x text-muted"></i>
+                </div>
+                
+                <h1 class="display-4 text-danger">Blog Bulunamadı</h1>
+                
+                <p class="lead text-muted mb-4">
+                    @ViewBag.ErrorMessage
+                </p>
+                
+                <p class="text-muted">
+                    @ViewBag.ErrorDetails
+                </p>
+                
+                <div class="mt-4">
+                    <h5>Mevcut Blog'lar (Development için):</h5>
+                    <div class="list-group mt-3">
+                        <a href="?tenant=tech" class="list-group-item list-group-item-action">
+                            <i class="fas fa-laptop-code me-2"></i>
+                            Tech Innovators - Teknoloji Blog'u
+                        </a>
+                        <a href="?tenant=lifestyle" class="list-group-item list-group-item-action">
+                            <i class="fas fa-heart me-2"></i>
+                            Life & Style - Yaşam Tarzı Blog'u
+                        </a>
+                        <a href="?tenant=business" class="list-group-item list-group-item-action">
+                            <i class="fas fa-briefcase me-2"></i>
+                            Business Hub - İş Dünyası Blog'u
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Development ortamında ?tenant=xxx parametresi ile test edebilirsiniz.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-page {
+    padding: 2rem;
+}
+
+.list-group-item {
+    transition: all 0.3s ease;
+}
+
+.list-group-item:hover {
+    transform: translateX(5px);
+    background-color: #f8f9fa;
+}
+</style>

@@ -4,41 +4,40 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace MultiTenantBlog.Models
 {
     /// <summary>
-    /// Blog yazısı modeli - Her yazı bir tenant'a ait
+    /// Blog yazısı modeli - DÜZELTME: Validation attributes düzeltildi
     /// </summary>
     public class BlogPost
     {
         [Key]
         public int Id { get; set; }
         
-        [Required]
-        public int TenantId { get; set; } // Hangi tenant'a ait olduğunu belirler
+        // TenantId required olmaktan çıkarıldı (controller'da manuel atanıyor)
+        public int TenantId { get; set; }
         
-        [Required(ErrorMessage = "Başlık gereklidir")]
-        [StringLength(200, ErrorMessage = "Başlık en fazla 200 karakter olabilir")]
-        public string Title { get; set; } = string.Empty; // Varsayılan değer
+        [Required(ErrorMessage = "Yazı başlığı zorunludur.")]
+        [StringLength(200, ErrorMessage = "Başlık en fazla 200 karakter olabilir.")]
+        public string Title { get; set; } = string.Empty;
         
-        [StringLength(500, ErrorMessage = "Özet en fazla 500 karakter olabilir")]
-        public string? Summary { get; set; } // Nullable
+        [StringLength(500, ErrorMessage = "Özet en fazla 500 karakter olabilir.")]
+        public string? Summary { get; set; }
         
-        [Required(ErrorMessage = "İçerik gereklidir")]
-        public string Content { get; set; } = string.Empty; // Varsayılan değer
+        [Required(ErrorMessage = "Yazı içeriği zorunludur.")]
+        public string Content { get; set; } = string.Empty;
         
-        [StringLength(100, ErrorMessage = "Yazar adı en fazla 100 karakter olabilir")]
-        public string Author { get; set; } = "Admin"; // Varsayılan değer
+        [StringLength(100, ErrorMessage = "Yazar adı en fazla 100 karakter olabilir.")]
+        public string Author { get; set; } = "Admin";
         
-        public DateTime PublishedDate { get; set; } = DateTime.Now; // Varsayılan değer
+        public DateTime PublishedDate { get; set; } = DateTime.Now;
         
-        public DateTime? UpdatedDate { get; set; } // Nullable
+        public DateTime? UpdatedDate { get; set; }
         
-        public bool IsPublished { get; set; } = true; // Varsayılan değer
+        public bool IsPublished { get; set; } = true;
         
-        [Required(ErrorMessage = "Kategori seçilmelidir")]
-        [Range(1, int.MaxValue, ErrorMessage = "Geçerli bir kategori seçin")]
-        public int CategoryId { get; set; } // Kategori ID'si
+        // CategoryId required olmaktan çıkarıldı (controller'da kontrol ediliyor)
+        public int CategoryId { get; set; }
         
         // Navigation Properties
-        [ForeignKey("TenantId")] // Foreign key ilişkisi
+        [ForeignKey("TenantId")]
         public Tenant Tenant { get; set; } = null!;
         
         [ForeignKey("CategoryId")]

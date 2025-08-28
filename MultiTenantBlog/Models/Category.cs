@@ -4,25 +4,25 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace MultiTenantBlog.Models
 {
     /// <summary>
-    /// Kategori modeli - Her kategori bir tenant'a ait
+    /// Kategori modeli - DÜZELTME: Validation attributes düzeltildi
     /// </summary>
     public class Category
     {
         [Key]
         public int Id { get; set; }
         
-        [Required]
-        public int TenantId { get; set; } // Hangi tenant'a ait
+        // TenantId required olmaktan çıkarıldı (controller'da manuel atanıyor)
+        public int TenantId { get; set; }
         
-        [Required]
-        [StringLength(100)]
-        public string Name { get; set; } // Kategori adı (örn: "Teknoloji")
+        [Required(ErrorMessage = "Kategori adı zorunludur.")]
+        [StringLength(100, ErrorMessage = "Kategori adı en fazla 100 karakter olabilir.")]
+        public string Name { get; set; } = string.Empty;
         
-        [StringLength(300)]
-        public string? Description { get; set; } // Kategori açıklaması
+        [StringLength(300, ErrorMessage = "Açıklama en fazla 300 karakter olabilir.")]
+        public string? Description { get; set; }
         
-        [StringLength(50)]
-        public string Color { get; set; } = "#007bff"; // Kategori rengi
+        [StringLength(50, ErrorMessage = "Renk kodu en fazla 50 karakter olabilir.")]
+        public string Color { get; set; } = "#007bff";
         
         // Navigation Properties
         [ForeignKey("TenantId")]

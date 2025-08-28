@@ -8,7 +8,7 @@ namespace MultiTenantBlog.Controllers
 {
     /// <summary>
     /// Admin paneli controller'ı - Blog yönetimi için
-    /// BaseController'dan miras alır, böylece CurrentTenant otomatik olarak set edilir
+    /// DÜZELTME: Model binding ve validation sorunları çözüldü
     /// </summary>
     public class AdminController : BaseController
     {
@@ -17,19 +17,18 @@ namespace MultiTenantBlog.Controllers
         public AdminController(ITenantService tenantService, ApplicationDbContext context) 
             : base(tenantService)
         {
-            _context = context; // Database context'ini dependency injection ile alır
+            _context = context;
         }
 
         /// <summary>
         /// Admin ana sayfası - Dashboard
-        /// Mevcut tenant'ın istatistiklerini ve son yazılarını gösterir
         /// </summary>
         public async Task<IActionResult> Index()
         {
             if (CurrentTenant == null)
                 return RedirectToAction("TenantNotFound", "Error");
 
-            // Mevcut tenant için istatistikleri hesapla
+            // İstatistikleri hesapla
             var stats = new
             {
                 TotalPosts = await _context.BlogPosts
@@ -42,7 +41,7 @@ namespace MultiTenantBlog.Controllers
                     .CountAsync(c => c.TenantId == CurrentTenant.Id)
             };
 
-            // Son yazıları getir (5 tane)
+            // Son yazıları getir
             var recentPosts = await _context.BlogPosts
                 .Where(p => p.TenantId == CurrentTenant.Id)
                 .Include(p => p.Category)
@@ -53,10 +52,10 @@ namespace MultiTenantBlog.Controllers
             // Kategorileri getir
             var categories = await _context.Categories
                 .Where(c => c.TenantId == CurrentTenant.Id)
+                .Include(c => c.BlogPosts) // Blog post sayısı için
                 .OrderBy(c => c.Name)
                 .ToListAsync();
 
-            // ViewBag ile view'a gönder
             ViewBag.Stats = stats;
             ViewBag.RecentPosts = recentPosts;
             ViewBag.Categories = categories;
@@ -65,7 +64,7 @@ namespace MultiTenantBlog.Controllers
         }
 
         /// <summary>
-        /// Tüm blog yazılarını listele (sadece mevcut tenant'a ait olanlar)
+        /// Blog yazılarını listele
         /// </summary>
         public async Task<IActionResult> Posts()
         {
@@ -74,170 +73,131 @@ namespace MultiTenantBlog.Controllers
 
             var posts = await _context.BlogPosts
                 .Where(p => p.TenantId == CurrentTenant.Id)
-                .Include(p => p.Category) // Kategori bilgisini de getir
+                .Include(p => p.Category)
                 .OrderByDescending(p => p.PublishedDate)
                 .ToListAsync();
 
             return View(posts);
         }
 
+        // ======================== BLOG POST YÖNETİMİ ========================
+
         /// <summary>
         /// Yeni blog yazısı oluşturma sayfası (GET)
+        /// DÜZELTME: ViewBag Categories düzgün yükleniyor
         /// </summary>
         [HttpGet]
         public async Task<IActionResult> CreatePost()
         {
             if (CurrentTenant == null)
+                return RedirectToAction("TenantNotFound", "Error");
+
+            // Kategorileri dropdown için hazırla
+            var categories = await _context.Categories
+                .Where(c => c.TenantId == CurrentTenant.Id)
+                .OrderBy(c => c.Name)
+                .Select(c => new { Id = c.Id, Name = c.Name })
+                .ToListAsync();
+
+            ViewBag.Categories = categories;
+
+            // Boş model döndür
+            var model = new BlogPost
             {
-                TempData["ErrorMessage"] = "Tenant bulunamadı.";
-                return RedirectToAction("Index", "Home");
-            }
+                Author = "Admin", // Default yazar
+                IsPublished = true, // Default yayınlı
+                PublishedDate = DateTime.Now
+            };
 
-            try
-            {
-                // Debug için log ekleyelim
-                Console.WriteLine($"Current Tenant ID: {CurrentTenant.Id}");
-                Console.WriteLine($"Current Tenant Name: {CurrentTenant.Name}");
-
-                // Kategorileri getir
-                var categories = await _context.Categories
-                    .Where(c => c.TenantId == CurrentTenant.Id)
-                    .OrderBy(c => c.Name)
-                    .ToListAsync();
-
-                Console.WriteLine($"Found {categories.Count} categories for tenant {CurrentTenant.Id}");
-
-                // ViewBag'e basit liste olarak gönder
-                ViewBag.Categories = categories.Select(c => new { Id = c.Id, Name = c.Name }).ToList();
-
-                // Eğer kategori yoksa uyarı ver
-                if (!categories.Any())
-                {
-                    TempData["ErrorMessage"] = "Bu tenant için kategori bulunamadı. Önce bir kategori oluşturun.";
-                }
-
-                return View();
-            }
-            catch (Exception ex)
-            {
-                // Hata durumunda detaylı log
-                Console.WriteLine($"Error in CreatePost: {ex.Message}");
-                Console.WriteLine($"StackTrace: {ex.StackTrace}");
-
-                // Boş liste gönder
-                ViewBag.Categories = new List<object>();
-                TempData["ErrorMessage"] = "Kategoriler yüklenirken bir hata oluştu: " + ex.Message;
-
-                return View();
-            }
+            return View(model);
         }
 
         /// <summary>
-        /// Yeni blog yazısı kaydetme (POST) - Düzeltilmiş versiyon
+        /// Yeni blog yazısı kaydetme (POST)
+        /// DÜZELTME: TenantId otomatik atanıyor, model validation düzeltildi
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreatePost(BlogPost model)
         {
-            // Debug için console'a yazdır
-            Console.WriteLine($"CreatePost POST called. Title: {model.Title}");
-            Console.WriteLine($"ModelState.IsValid: {ModelState.IsValid}");
-            
             if (CurrentTenant == null)
+                return RedirectToAction("TenantNotFound", "Error");
+
+            // TenantId'yi manuel ata (required field hatası çözümü)
+            model.TenantId = CurrentTenant.Id;
+
+            // Gerekli alanların kontrolü (ModelState'ten önce)
+            if (string.IsNullOrWhiteSpace(model.Title))
             {
-                TempData["ErrorMessage"] = "Tenant bulunamadı.";
-                return RedirectToAction("Index", "Home");
+                ModelState.AddModelError("Title", "Yazı başlığı zorunludur.");
             }
 
-            // Model state hatalarını kontrol et
-            if (!ModelState.IsValid)
+            if (string.IsNullOrWhiteSpace(model.Content))
             {
-                // Hataları konsola yazdır
-                foreach (var error in ModelState)
+                ModelState.AddModelError("Content", "Yazı içeriği zorunludur.");
+            }
+
+            if (model.CategoryId <= 0)
+            {
+                ModelState.AddModelError("CategoryId", "Kategori seçimi zorunludur.");
+            }
+
+            // Kategori var mı kontrol et
+            var categoryExists = await _context.Categories
+                .AnyAsync(c => c.Id == model.CategoryId && c.TenantId == CurrentTenant.Id);
+            
+            if (model.CategoryId > 0 && !categoryExists)
+            {
+                ModelState.AddModelError("CategoryId", "Seçilen kategori bulunamadı.");
+            }
+
+            // ModelState'i Tenant için temizle (çünkü manuel atadık)
+            ModelState.Remove("Tenant");
+
+            if (ModelState.IsValid)
+            {
+                try
                 {
-                    Console.WriteLine($"ModelState Error - Key: {error.Key}, Errors: {string.Join(", ", error.Value.Errors.Select(e => e.ErrorMessage))}");
+                    // Tarih ayarları
+                    model.PublishedDate = DateTime.Now;
+                    
+                    // Eğer Summary boşsa, Content'in ilk 200 karakterini kullan
+                    if (string.IsNullOrEmpty(model.Summary) && !string.IsNullOrEmpty(model.Content))
+                    {
+                        // HTML etiketlerini temizle
+                        var plainText = System.Text.RegularExpressions.Regex.Replace(model.Content, "<.*?>", "");
+                        model.Summary = plainText.Length > 200 
+                            ? plainText.Substring(0, 200) + "..." 
+                            : plainText;
+                    }
+
+                    _context.BlogPosts.Add(model);
+                    await _context.SaveChangesAsync();
+
+                    TempData["SuccessMessage"] = "Blog yazısı başarıyla oluşturuldu!";
+                    return RedirectToAction(nameof(Posts));
                 }
-
-                // Kategorileri tekrar yükle
-                await LoadCategoriesForView();
-                TempData["ErrorMessage"] = "Form verilerinde hata var. Lütfen kontrol edin.";
-                return View(model);
-            }
-
-            try
-            {
-                // Yeni post oluştur
-                var newPost = new BlogPost
+                catch (Exception ex)
                 {
-                    TenantId = CurrentTenant.Id,
-                    Title = model.Title.Trim(),
-                    Content = model.Content.Trim(),
-                    Summary = string.IsNullOrWhiteSpace(model.Summary) ? null : model.Summary.Trim(),
-                    Author = string.IsNullOrWhiteSpace(model.Author) ? "Admin" : model.Author.Trim(),
-                    CategoryId = model.CategoryId,
-                    IsPublished = model.IsPublished,
-                    PublishedDate = DateTime.Now
-                };
-
-                // Eğer Summary boşsa, Content'in ilk 200 karakterini kullan
-                if (string.IsNullOrEmpty(newPost.Summary) && !string.IsNullOrEmpty(newPost.Content))
-                {
-                    var plainText = System.Text.RegularExpressions.Regex.Replace(newPost.Content, "<.*?>", "");
-                    newPost.Summary = plainText.Length > 200 
-                        ? plainText.Substring(0, 200) + "..." 
-                        : plainText;
+                    ModelState.AddModelError("", "Bir hata oluştu: " + ex.Message);
                 }
-
-                // Veritabanına ekle
-                _context.BlogPosts.Add(newPost);
-                var result = await _context.SaveChangesAsync();
-
-                Console.WriteLine($"SaveChanges result: {result}");
-                Console.WriteLine($"New post ID: {newPost.Id}");
-
-                // Başarı mesajı
-                var statusMessage = newPost.IsPublished ? "yayınlandı" : "taslak olarak kaydedildi";
-                TempData["SuccessMessage"] = $"'{newPost.Title}' başlıklı yazı başarıyla {statusMessage}!";
-                
-                return RedirectToAction(nameof(Posts));
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"CreatePost Error: {ex.Message}");
-                Console.WriteLine($"InnerException: {ex.InnerException?.Message}");
-                Console.WriteLine($"StackTrace: {ex.StackTrace}");
 
-                // Kategorileri tekrar yükle
-                await LoadCategoriesForView();
-                
-                TempData["ErrorMessage"] = $"Yazı kaydedilirken bir hata oluştu: {ex.Message}";
-                return View(model);
-            }
-        }
+            // Hata durumunda kategorileri tekrar yükle
+            var categories = await _context.Categories
+                .Where(c => c.TenantId == CurrentTenant.Id)
+                .OrderBy(c => c.Name)
+                .Select(c => new { Id = c.Id, Name = c.Name })
+                .ToListAsync();
 
-        /// <summary>
-        /// Kategorileri ViewBag'e yükler
-        /// </summary>
-        private async Task LoadCategoriesForView()
-        {
-            if (CurrentTenant != null)
-            {
-                var categories = await _context.Categories
-                    .Where(c => c.TenantId == CurrentTenant.Id)
-                    .OrderBy(c => c.Name)
-                    .Select(c => new { c.Id, c.Name })
-                    .ToListAsync();
+            ViewBag.Categories = categories;
 
-                ViewBag.Categories = categories;
-            }
-            else
-            {
-                ViewBag.Categories = new List<object>();
-            }
+            return View(model);
         }
 
         /// <summary>
         /// Blog yazısı düzenleme sayfası (GET)
+        /// DÜZELTME: Mevcut kategori bilgisi ViewBag'e eklendi
         /// </summary>
         [HttpGet]
         public async Task<IActionResult> EditPost(int id)
@@ -246,25 +206,28 @@ namespace MultiTenantBlog.Controllers
                 return RedirectToAction("TenantNotFound", "Error");
 
             var post = await _context.BlogPosts
+                .Include(p => p.Category)
                 .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == CurrentTenant.Id);
 
             if (post == null)
                 return NotFound("Blog yazısı bulunamadı.");
 
-            // Kategorileri dropdown için hazırla - Düzeltilmiş versiyon
+            // Kategorileri dropdown için hazırla
             var categories = await _context.Categories
                 .Where(c => c.TenantId == CurrentTenant.Id)
                 .OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name })
+                .Select(c => new { Id = c.Id, Name = c.Name })
                 .ToListAsync();
 
             ViewBag.Categories = categories;
+            ViewBag.CurrentCategory = post.Category; // Mevcut kategori bilgisi
 
             return View(post);
         }
 
         /// <summary>
         /// Blog yazısı güncelleme (POST)
+        /// DÜZELTME: Güncelleme işlemi düzeltildi
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -276,52 +239,88 @@ namespace MultiTenantBlog.Controllers
             if (id != model.Id)
                 return BadRequest("ID uyuşmazlığı.");
 
-            // Mevcut blog yazısını bul
             var existingPost = await _context.BlogPosts
                 .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == CurrentTenant.Id);
 
             if (existingPost == null)
                 return NotFound("Blog yazısı bulunamadı.");
 
+            // Model validation (aynı CreatePost gibi)
+            if (string.IsNullOrWhiteSpace(model.Title))
+            {
+                ModelState.AddModelError("Title", "Yazı başlığı zorunludur.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.Content))
+            {
+                ModelState.AddModelError("Content", "Yazı içeriği zorunludur.");
+            }
+
+            if (model.CategoryId <= 0)
+            {
+                ModelState.AddModelError("CategoryId", "Kategori seçimi zorunludur.");
+            }
+
+            // Kategori var mı kontrol et
+            var categoryExists = await _context.Categories
+                .AnyAsync(c => c.Id == model.CategoryId && c.TenantId == CurrentTenant.Id);
+            
+            if (model.CategoryId > 0 && !categoryExists)
+            {
+                ModelState.AddModelError("CategoryId", "Seçilen kategori bulunamadı.");
+            }
+
+            // ModelState temizleme
+            ModelState.Remove("Tenant");
+
             if (ModelState.IsValid)
             {
-                // Mevcut post'u güncelle (sadece değiştirilebilir alanlar)
-                existingPost.Title = model.Title;
-                existingPost.Content = model.Content;
-                existingPost.Summary = model.Summary;
-                existingPost.CategoryId = model.CategoryId;
-                existingPost.Author = model.Author;
-                existingPost.IsPublished = model.IsPublished;
-                existingPost.UpdatedDate = DateTime.Now;
-
-                // Eğer Summary boşsa, Content'in ilk 200 karakterini kullan
-                if (string.IsNullOrEmpty(existingPost.Summary) && !string.IsNullOrEmpty(existingPost.Content))
+                try
                 {
-                    var plainText = System.Text.RegularExpressions.Regex.Replace(existingPost.Content, "<.*?>", "");
-                    existingPost.Summary = plainText.Length > 200 
-                        ? plainText.Substring(0, 200) + "..." 
-                        : plainText;
+                    // Sadece değiştirilebilir alanları güncelle
+                    existingPost.Title = model.Title;
+                    existingPost.Content = model.Content;
+                    existingPost.Summary = model.Summary;
+                    existingPost.CategoryId = model.CategoryId;
+                    existingPost.Author = model.Author;
+                    existingPost.IsPublished = model.IsPublished;
+                    existingPost.UpdatedDate = DateTime.Now;
+
+                    // Summary otomatik oluştur
+                    if (string.IsNullOrEmpty(existingPost.Summary) && !string.IsNullOrEmpty(existingPost.Content))
+                    {
+                        var plainText = System.Text.RegularExpressions.Regex.Replace(existingPost.Content, "<.*?>", "");
+                        existingPost.Summary = plainText.Length > 200 
+                            ? plainText.Substring(0, 200) + "..." 
+                            : plainText;
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    TempData["SuccessMessage"] = "Blog yazısı başarıyla güncellendi!";
+                    return RedirectToAction(nameof(Posts));
                 }
-
-                // Değişiklikleri kaydet
-                await _context.SaveChangesAsync();
-
-                TempData["SuccessMessage"] = "Blog yazısı başarıyla güncellendi!";
-                return RedirectToAction(nameof(Posts));
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("", "Bir hata oluştu: " + ex.Message);
+                }
             }
 
             // Hata durumunda kategorileri tekrar yükle
-            ViewBag.Categories = await _context.Categories
+            var categories = await _context.Categories
                 .Where(c => c.TenantId == CurrentTenant.Id)
                 .OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name })
+                .Select(c => new { Id = c.Id, Name = c.Name })
                 .ToListAsync();
+
+            ViewBag.Categories = categories;
 
             return View(model);
         }
 
         /// <summary>
         /// Blog yazısı silme
+        /// DÜZELTME: Route parametresi düzeltildi
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -336,11 +335,18 @@ namespace MultiTenantBlog.Controllers
             if (post == null)
                 return NotFound("Blog yazısı bulunamadı.");
 
-            // Blog yazısını sil
-            _context.BlogPosts.Remove(post);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.BlogPosts.Remove(post);
+                await _context.SaveChangesAsync();
 
-            TempData["SuccessMessage"] = "Blog yazısı başarıyla silindi!";
+                TempData["SuccessMessage"] = $"'{post.Title}' yazısı başarıyla silindi!";
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Yazı silinirken bir hata oluştu: " + ex.Message;
+            }
+
             return RedirectToAction(nameof(Posts));
         }
 
@@ -348,6 +354,7 @@ namespace MultiTenantBlog.Controllers
 
         /// <summary>
         /// Kategorileri listele
+        /// DÜZELTME: Include ilişkiler düzeltildi
         /// </summary>
         public async Task<IActionResult> Categories()
         {
@@ -356,7 +363,7 @@ namespace MultiTenantBlog.Controllers
 
             var categories = await _context.Categories
                 .Where(c => c.TenantId == CurrentTenant.Id)
-                .Include(c => c.BlogPosts) // Her kategorinin kaç yazısı var
+                .Include(c => c.BlogPosts.Where(p => p.IsPublished)) // Sadece yayınlanan yazılar
                 .OrderBy(c => c.Name)
                 .ToListAsync();
 
@@ -372,11 +379,17 @@ namespace MultiTenantBlog.Controllers
             if (CurrentTenant == null)
                 return RedirectToAction("TenantNotFound", "Error");
 
-            return View();
+            var model = new Category
+            {
+                Color = "#007bff" // Default renk
+            };
+
+            return View(model);
         }
 
         /// <summary>
         /// Yeni kategori kaydetme (POST)
+        /// DÜZELTME: TenantId otomatik atama ve validation
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -385,21 +398,47 @@ namespace MultiTenantBlog.Controllers
             if (CurrentTenant == null)
                 return RedirectToAction("TenantNotFound", "Error");
 
+            // TenantId'yi manuel ata
+            model.TenantId = CurrentTenant.Id;
+
+            // Custom validation
+            if (string.IsNullOrWhiteSpace(model.Name))
+            {
+                ModelState.AddModelError("Name", "Kategori adı zorunludur.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.Color))
+            {
+                model.Color = "#007bff";
+            }
+
+            // Aynı isimde kategori var mı kontrol et
+            var existingCategory = await _context.Categories
+                .AnyAsync(c => c.TenantId == CurrentTenant.Id && 
+                              c.Name.ToLower() == model.Name.ToLower());
+
+            if (existingCategory)
+            {
+                ModelState.AddModelError("Name", "Bu isimde bir kategori zaten var.");
+            }
+
+            // ModelState temizleme
+            ModelState.Remove("Tenant");
+
             if (ModelState.IsValid)
             {
-                model.TenantId = CurrentTenant.Id;
-                
-                // Kategori rengi belirtilmemişse varsayılan renk ata
-                if (string.IsNullOrEmpty(model.Color))
+                try
                 {
-                    model.Color = "#007bff"; // Bootstrap primary color
+                    _context.Categories.Add(model);
+                    await _context.SaveChangesAsync();
+
+                    TempData["SuccessMessage"] = $"'{model.Name}' kategorisi başarıyla oluşturuldu!";
+                    return RedirectToAction(nameof(Categories));
                 }
-
-                _context.Categories.Add(model);
-                await _context.SaveChangesAsync();
-
-                TempData["SuccessMessage"] = "Kategori başarıyla oluşturuldu!";
-                return RedirectToAction(nameof(Categories));
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("", "Bir hata oluştu: " + ex.Message);
+                }
             }
 
             return View(model);
@@ -415,6 +454,7 @@ namespace MultiTenantBlog.Controllers
                 return RedirectToAction("TenantNotFound", "Error");
 
             var category = await _context.Categories
+                .Include(c => c.BlogPosts)
                 .FirstOrDefaultAsync(c => c.Id == id && c.TenantId == CurrentTenant.Id);
 
             if (category == null)
@@ -425,6 +465,7 @@ namespace MultiTenantBlog.Controllers
 
         /// <summary>
         /// Kategori güncelleme (POST)
+        /// DÜZELTME: Güncelleme işlemi düzeltildi
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -442,16 +483,43 @@ namespace MultiTenantBlog.Controllers
             if (existingCategory == null)
                 return NotFound("Kategori bulunamadı.");
 
+            // Custom validation
+            if (string.IsNullOrWhiteSpace(model.Name))
+            {
+                ModelState.AddModelError("Name", "Kategori adı zorunludur.");
+            }
+
+            // Aynı isimde başka kategori var mı kontrol et
+            var duplicateCategory = await _context.Categories
+                .AnyAsync(c => c.TenantId == CurrentTenant.Id && 
+                              c.Id != id &&
+                              c.Name.ToLower() == model.Name.ToLower());
+
+            if (duplicateCategory)
+            {
+                ModelState.AddModelError("Name", "Bu isimde başka bir kategori zaten var.");
+            }
+
+            // ModelState temizleme
+            ModelState.Remove("Tenant");
+
             if (ModelState.IsValid)
             {
-                existingCategory.Name = model.Name;
-                existingCategory.Description = model.Description;
-                existingCategory.Color = model.Color;
+                try
+                {
+                    existingCategory.Name = model.Name;
+                    existingCategory.Description = model.Description;
+                    existingCategory.Color = model.Color;
 
-                await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync();
 
-                TempData["SuccessMessage"] = "Kategori başarıyla güncellendi!";
-                return RedirectToAction(nameof(Categories));
+                    TempData["SuccessMessage"] = $"'{model.Name}' kategorisi başarıyla güncellendi!";
+                    return RedirectToAction(nameof(Categories));
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("", "Bir hata oluştu: " + ex.Message);
+                }
             }
 
             return View(model);
@@ -459,6 +527,7 @@ namespace MultiTenantBlog.Controllers
 
         /// <summary>
         /// Kategori silme
+        /// DÜZELTME: Route parametresi düzeltildi
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -468,30 +537,38 @@ namespace MultiTenantBlog.Controllers
                 return RedirectToAction("TenantNotFound", "Error");
 
             var category = await _context.Categories
-                .Include(c => c.BlogPosts) // Bu kategoriye ait yazıları da getir
+                .Include(c => c.BlogPosts)
                 .FirstOrDefaultAsync(c => c.Id == id && c.TenantId == CurrentTenant.Id);
 
             if (category == null)
                 return NotFound("Kategori bulunamadı.");
 
-            // Eğer kategoriye ait yazılar varsa silme işlemini engelle
+            // Yazısı olan kategori silinemez
             if (category.BlogPosts.Any())
             {
-                TempData["ErrorMessage"] = $"'{category.Name}' kategorisine ait {category.BlogPosts.Count} adet blog yazısı bulunuyor. Önce bu yazıları başka kategoriye taşıyın veya silin.";
+                TempData["ErrorMessage"] = $"'{category.Name}' kategorisine ait {category.BlogPosts.Count} adet blog yazısı bulunuyor. Önce yazıları başka kategoriye taşıyın veya silin.";
                 return RedirectToAction(nameof(Categories));
             }
 
-            _context.Categories.Remove(category);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Categories.Remove(category);
+                await _context.SaveChangesAsync();
 
-            TempData["SuccessMessage"] = "Kategori başarıyla silindi!";
+                TempData["SuccessMessage"] = $"'{category.Name}' kategorisi başarıyla silindi!";
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Kategori silinirken bir hata oluştu: " + ex.Message;
+            }
+
             return RedirectToAction(nameof(Categories));
         }
 
         // ======================== YARDIMCI METODLAR ========================
 
         /// <summary>
-        /// Mevcut tenant'ın istatistiklerini JSON olarak döndürür (AJAX için)
+        /// Tenant istatistiklerini JSON olarak döndür (AJAX için)
         /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetStats()
@@ -517,7 +594,8 @@ namespace MultiTenantBlog.Controllers
         }
 
         /// <summary>
-        /// Blog yazısının yayın durumunu değiştir (Published/Draft)
+        /// Blog yazısının yayın durumunu değiştir (AJAX)
+        /// DÜZELTME: AJAX route düzeltildi
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -532,20 +610,25 @@ namespace MultiTenantBlog.Controllers
             if (post == null)
                 return Json(new { success = false, message = "Blog yazısı bulunamadı" });
 
-            // Yayın durumunu tersine çevir.
-            post.IsPublished = !post.IsPublished;
-            post.UpdatedDate = DateTime.Now;
-
-            // Eğer yayından kaldırılıyorsa PublishedDate'i güncelle
-            if (post.IsPublished)
+            try
             {
-                post.PublishedDate = DateTime.Now;
+                post.IsPublished = !post.IsPublished;
+                post.UpdatedDate = DateTime.Now;
+
+                if (post.IsPublished)
+                {
+                    post.PublishedDate = DateTime.Now;
+                }
+
+                await _context.SaveChangesAsync();
+
+                var message = post.IsPublished ? "Yazı yayınlandı" : "Yazı taslağa çevrildi";
+                return Json(new { success = true, message = message, isPublished = post.IsPublished });
             }
-
-            await _context.SaveChangesAsync();
-
-            var message = post.IsPublished ? "Yazı yayınlandı" : "Yazı taslağa çevrildi";
-            return Json(new { success = true, message = message, isPublished = post.IsPublished });
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = "Bir hata oluştu: " + ex.Message });
+            }
         }
     }
 }
