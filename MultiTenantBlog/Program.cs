@@ -27,11 +27,3 @@ app.MapControllerRoute(
 
 
 app.Run();
-
-
-
-
-# Terminal'de proje klasöründe:
-git remote add origin https://github.com/Ackzais/MultiTenantBlog.git
-git branch -M main
-    git push -u origin main
