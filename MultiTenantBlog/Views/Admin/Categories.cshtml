@@ -1,0 +1,607 @@
+@model IEnumerable<MultiTenantBlog.Models.Category>
+@{
+ViewData["Title"] = "Kategoriler";
+}
+
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-1">
+                    <i class="fas fa-tags me-2 text-info"></i>
+                    Kategoriler
+                </h1>
+                <p class="text-muted mb-0">@ViewBag.CurrentTenant?.Name için kategori yönetimi</p>
+            </div>
+            <div>
+                <a href="@Url.Action("CreateCategory")" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Yeni Kategori Ekle
+                </a>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success/Error Messages -->
+@if (TempData["SuccessMessage"] != null)
+{
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+}
+
+<!-- Categories Overview Cards -->
+@if (Model != null && Model.Any())
+{
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Toplam Kategori
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            @Model.Count()
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-tags fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Aktif Yazı
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            @Model.Sum(c => c.BlogPosts?.Count ?? 0)
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-file-alt fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            En Popüler
+                        </div>
+                        <div class="h6 mb-0 font-weight-bold text-gray-800">
+                            @{
+                            var mostPopular = Model.OrderByDescending(c => c.BlogPosts?.Count ?? 0).FirstOrDefault();
+                            }
+                            @(mostPopular?.Name ?? "N/A")
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-star fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Boş Kategori
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            @Model.Count(c => (c.BlogPosts?.Count ?? 0) == 0)
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-folder-open fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+<!-- Main Categories Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-info">
+                    <i class="fas fa-list me-2"></i>
+                    Kategori Listesi (@(Model?.Count() ?? 0) adet)
+                </h6>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown">
+                        <i class="fas fa-cog me-1"></i>Toplu İşlemler
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="exportCategories()">
+                                <i class="fas fa-download me-2"></i>Kategorileri Dışa Aktar
+                            </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="bulkColorChange()">
+                                <i class="fas fa-palette me-2"></i>Toplu Renk Değiştir
+                            </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="bulkDelete()">
+                                <i class="fas fa-trash me-2"></i>Seçilenleri Sil
+                            </a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                @if (Model != null && Model.Any())
+                {
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="categoriesTable">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectAll" class="form-check-input">
+                            </th>
+                            <th>Kategori</th>
+                            <th style="width: 200px;">Açıklama</th>
+                            <th style="width: 100px;">Renk</th>
+                            <th style="width: 100px;">Yazı Sayısı</th>
+                            <th style="width: 150px;">İşlemler</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var category in Model.OrderBy(c => c.Name))
+                        {
+                        var postCount = category.BlogPosts?.Count ?? 0;
+                        <tr data-category-id="@category.Id">
+                            <td>
+                                <input type="checkbox" class="form-check-input category-checkbox"
+                                       value="@category.Id">
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                                <span class="badge me-3"
+                                                      style="background-color: @category.Color; color: white; font-size: 1rem; padding: 0.5rem;">
+                                                    <i class="fas fa-tag"></i>
+                                                </span>
+                                    <div>
+                                        <h6 class="mb-0">@category.Name</h6>
+                                        <small class="text-muted">ID: @category.Id</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(category.Description))
+                                {
+                                <small class="text-muted">
+                                    @(category.Description.Length > 50
+                                    ? category.Description.Substring(0, 50) + "..."
+                                    : category.Description)
+                                </small>
+                                }
+                                else
+                                {
+                                <small class="text-muted fst-italic">Açıklama yok</small>
+                                }
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="color-preview me-2"
+                                         style="width: 30px; height: 30px; background-color: @category.Color; border-radius: 50%; border: 2px solid #dee2e6;">
+                                    </div>
+                                    <small class="font-monospace">@category.Color</small>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                @if (postCount > 0)
+                                {
+                                <span class="badge bg-success rounded-pill">
+                                                    @postCount yazı
+                                                </span>
+                                }
+                                else
+                                {
+                                <span class="badge bg-secondary rounded-pill">
+                                                    Boş
+                                                </span>
+                                }
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <!-- View Posts Button -->
+                                    @if (postCount > 0)
+                                    {
+                                    <a href="@Url.Action("Category", "Home", new { id = category.Id })"
+                                       class="btn btn-outline-info"
+                                       title="Yazıları Görüntüle" target="_blank">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    }
+                                    else
+                                    {
+                                    <button class="btn btn-outline-secondary" disabled title="Yazı yok">
+                                        <i class="fas fa-eye-slash"></i>
+                                    </button>
+                                    }
+
+                                    <!-- Edit Button -->
+                                    <a href="@Url.Action("EditCategory", new { id = category.Id })"
+                                       class="btn btn-outline-warning"
+                                       title="Düzenle">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+
+                                    <!-- Delete Button -->
+                                    <button type="button"
+                                            class="btn btn-outline-danger @(postCount > 0 ? "disabled" : "")"
+                                            title="@(postCount > 0 ? "Bu kategoride yazı var, silinemez" : "Sil")"
+                                            @(postCount > 0 ? "disabled" : "")
+                                            @if(postCount == 0) {
+                                            <text>onclick="deleteCategory(@category.Id, '@category.Name')"</text>
+                                            }>
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                }
+                else
+                {
+                <!-- Empty State -->
+                <div class="text-center py-5">
+                    <i class="fas fa-tags fa-4x text-muted mb-4"></i>
+                    <h4 class="text-muted">Henüz kategori yok</h4>
+                    <p class="text-muted mb-4">Blog yazılarınızı organize etmek için kategoriler oluşturun</p>
+                    <a href="@Url.Action("CreateCategory")" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>İlk Kategoriyi Ekle
+                    </a>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Category Color Legend -->
+@if (Model != null && Model.Any())
+{
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-muted">
+                    <i class="fas fa-palette me-2"></i>Renk Paleti
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach (var category in Model.OrderBy(c => c.Name))
+                    {
+                    <div class="d-flex align-items-center">
+                        <div class="color-swatch me-2"
+                             style="width: 20px; height: 20px; background-color: @category.Color; border-radius: 4px; border: 1px solid #dee2e6;">
+                        </div>
+                        <small class="text-muted">@category.Name</small>
+                    </div>
+                    }
+                </div>
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        <strong>İpucu:</strong> Kategorileri kolayca ayırt etmek için farklı renkler kullanın.
+                        Renklerin blog sayfasında kategori badge'lerinde görüneceğini unutmayın.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-trash me-2 text-danger"></i>Kategoriyi Sil
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Bu kategoriyi silmek istediğinizden emin misiniz?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Uyarı:</strong> Bu işlem geri alınamaz!
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Not:</strong> Sadece hiç yazısı olmayan kategoriler silinebilir.
+                </div>
+                <p><strong>Kategori:</strong> <span id="deleteCategoryName"></span></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    İptal
+                </button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>Evet, Sil
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Select all checkbox functionality
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.category-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // Delete category function
+    function deleteCategory(categoryId, categoryName) {
+        document.getElementById('deleteCategoryName').textContent = categoryName;
+        document.getElementById('deleteForm').action = `@Url.Action("DeleteCategory")/${categoryId}`;
+
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+
+    // Bulk operations (placeholder implementations)
+    function exportCategories() {
+        const categories = @Html.Raw(Json.Serialize(
+        Model?.Select(c => new { c.Id, c.Name, c.Description, c.Color, PostCount = c.BlogPosts?.Count ?? 0 })
+        ?? Enumerable.Empty<object>()
+        ));
+
+
+        // Convert to CSV
+        const csvContent = "data:text/csv;charset=utf-8," +
+            "ID,Name,Description,Color,PostCount\n" +
+            categories.map(c => `${c.id},"${c.name}","${c.description || ''}","${c.color}",${c.postCount}`).join('\n');
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `kategoriler_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showMessage('Kategoriler CSV formatında indirildi', 'success');
+    }
+
+    function bulkColorChange() {
+        const selectedCategories = getSelectedCategories();
+        if (selectedCategories.length === 0) {
+            showMessage('Lütfen renk değiştirmek istediğiniz kategorileri seçin', 'error');
+            return;
+        }
+
+        const newColor = prompt('Yeni renk kodunu girin (örn: #ff5722):', '#007bff');
+        if (newColor && /^#[0-9A-F]{6}$/i.test(newColor)) {
+            showMessage(`${selectedCategories.length} kategori için toplu renk değişimi özelliği yakında eklenecek`, 'info');
+        } else if (newColor) {
+            showMessage('Geçersiz renk kodu. Lütfen #rrggbb formatında girin.', 'error');
+        }
+    }
+
+    function bulkDelete() {
+        const selectedCategories = getSelectedCategories();
+        if (selectedCategories.length === 0) {
+            showMessage('Lütfen silmek istediğiniz kategorileri seçin', 'error');
+            return;
+        }
+
+        // Check if any selected category has posts
+        let hasPostsCount = 0;
+        selectedCategories.forEach(catId => {
+            const row = document.querySelector(`tr[data-category-id="${catId}"]`);
+            const postCount = row.querySelector('.badge').textContent;
+            if (!postCount.includes('Boş')) {
+                hasPostsCount++;
+            }
+        });
+
+        if (hasPostsCount > 0) {
+            showMessage(`Seçilen kategorilerden ${hasPostsCount} tanesinde yazı var. Sadece boş kategoriler silinebilir.`, 'error');
+            return;
+        }
+
+        if (confirm(`${selectedCategories.length} kategoriyi silmek istediğinizden emin misiniz?`)) {
+            showMessage('Toplu silme özelliği yakında eklenecek', 'info');
+        }
+    }
+
+    function getSelectedCategories() {
+        const checkboxes = document.querySelectorAll('.category-checkbox:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    // Show message function
+    function showMessage(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' :
+            type === 'error' ? 'alert-danger' : 'alert-info';
+        const icon = type === 'success' ? 'fa-check-circle' :
+            type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+
+        const alert = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    <i class="fas ${icon} me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+
+        const container = document.querySelector('.row');
+        container.insertAdjacentHTML('beforebegin', alert);
+
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            const alertElement = document.querySelector('.alert');
+            if (alertElement) {
+                const closeButton = alertElement.querySelector('.btn-close');
+                if (closeButton) {
+                    closeButton.click();
+                }
+            }
+        }, 5000);
+    }
+
+    // Auto-dismiss existing alerts
+    document.addEventListener('DOMContentLoaded', function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            setTimeout(() => {
+                const closeButton = alert.querySelector('.btn-close');
+                if (closeButton) {
+                    closeButton.click();
+                }
+            }, 5000);
+        });
+    });
+
+    // Color preview hover effects
+    document.addEventListener('DOMContentLoaded', function() {
+        const colorPreviews = document.querySelectorAll('.color-preview');
+        colorPreviews.forEach(preview => {
+            preview.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.2)';
+                this.style.transition = 'all 0.3s ease';
+            });
+
+            preview.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+        });
+    });
+
+    // Table row hover effects
+    const tableRows = document.querySelectorAll('#categoriesTable tbody tr');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#f8f9fc';
+        });
+
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+    });
+</script>
+
+<style>
+    .card {
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+        border: none;
+    }
+
+    .border-left-info {
+        border-left: 0.25rem solid #36b9cc !important;
+    }
+
+    .border-left-success {
+        border-left: 0.25rem solid #1cc88a !important;
+    }
+
+    .border-left-warning {
+        border-left: 0.25rem solid #f6c23e !important;
+    }
+
+    .border-left-primary {
+        border-left: 0.25rem solid #4e73df !important;
+    }
+
+    .text-xs {
+        font-size: 0.7rem;
+    }
+
+    .table th {
+        background-color: #f8f9fc;
+        border-top: none;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #5a5c69;
+    }
+
+    .table td {
+        vertical-align: middle;
+        font-size: 0.9rem;
+    }
+
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .color-preview {
+        cursor: pointer;
+    }
+
+    .color-swatch {
+        cursor: pointer;
+    }
+
+    .badge {
+        font-size: 0.75rem;
+    }
+
+    .font-monospace {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+    }
+
+    .alert {
+        border: none;
+        border-radius: 0.375rem;
+    }
+
+    /* Table hover effects */
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fc !important;
+    }
+
+    /* Badge animations */
+    .badge {
+        transition: all 0.3s ease;
+    }
+
+    .badge:hover {
+        transform: scale(1.05);
+    }
+</style>
+}
