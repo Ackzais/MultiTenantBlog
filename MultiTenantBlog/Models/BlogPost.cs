@@ -14,25 +14,27 @@ namespace MultiTenantBlog.Models
         [Required]
         public int TenantId { get; set; } // Hangi tenant'a ait olduğunu belirler
         
-        [Required]
-        [StringLength(200)]
-        public string Title { get; set; } // Yazı başlığı
+        [Required(ErrorMessage = "Başlık gereklidir")]
+        [StringLength(200, ErrorMessage = "Başlık en fazla 200 karakter olabilir")]
+        public string Title { get; set; } = string.Empty; // Varsayılan değer
         
-        [StringLength(500)]
-        public string? Summary { get; set; } // Kısa özet
+        [StringLength(500, ErrorMessage = "Özet en fazla 500 karakter olabilir")]
+        public string? Summary { get; set; } // Nullable
         
-        [Required]
-        public string Content { get; set; } // Yazı içeriği (HTML olabilir)
+        [Required(ErrorMessage = "İçerik gereklidir")]
+        public string Content { get; set; } = string.Empty; // Varsayılan değer
         
-        [StringLength(100)]
-        public string Author { get; set; } = "Admin"; // Yazar adı
+        [StringLength(100, ErrorMessage = "Yazar adı en fazla 100 karakter olabilir")]
+        public string Author { get; set; } = "Admin"; // Varsayılan değer
         
-        public DateTime PublishedDate { get; set; } = DateTime.Now; // Yayın tarihi
+        public DateTime PublishedDate { get; set; } = DateTime.Now; // Varsayılan değer
         
-        public DateTime? UpdatedDate { get; set; } // Güncellenme tarihi
+        public DateTime? UpdatedDate { get; set; } // Nullable
         
-        public bool IsPublished { get; set; } = true; // Yayında mı?
+        public bool IsPublished { get; set; } = true; // Varsayılan değer
         
+        [Required(ErrorMessage = "Kategori seçilmelidir")]
+        [Range(1, int.MaxValue, ErrorMessage = "Geçerli bir kategori seçin")]
         public int CategoryId { get; set; } // Kategori ID'si
         
         // Navigation Properties

@@ -1,6 +1,6 @@
 @model MultiTenantBlog.Models.BlogPost
 @{
-    ViewData["Title"] = "Yeni Blog Yazısı";
+    ViewData["Title"] = "Yazıyı Düzenle";
     var categories = ViewBag.Categories as IEnumerable<dynamic>;
 }
 
@@ -10,12 +10,18 @@
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h1 class="h2 mb-1">
-                    <i class="fas fa-plus me-2 text-primary"></i>
-                    Yeni Blog Yazısı
+                    <i class="fas fa-edit me-2 text-warning"></i>
+                    Yazıyı Düzenle
                 </h1>
-                <p class="text-muted mb-0">@ViewBag.CurrentTenant?.Name için yeni bir blog yazısı oluşturun</p>
+                <p class="text-muted mb-0">
+                    <strong>@Model.Title</strong> yazısını düzenliyorsunuz
+                </p>
             </div>
             <div>
+                <a href="@Url.Action("Details", "Home", new { id = Model.Id })" 
+                   class="btn btn-outline-info" target="_blank">
+                    <i class="fas fa-external-link-alt me-1"></i>Yazıyı Görüntüle
+                </a>
                 <a href="@Url.Action("Posts")" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left me-1"></i>Blog Yazıları
                 </a>
@@ -40,16 +46,40 @@
 }
 
 <!-- Main Form -->
-<form asp-action="CreatePost" method="post" id="createPostForm">
+<form asp-action="EditPost" method="post" id="editPostForm">
     @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Id)
+    @Html.HiddenFor(m => m.TenantId)
+    @Html.HiddenFor(m => m.PublishedDate)
     
     <div class="row">
         <!-- Left Column - Main Content -->
         <div class="col-lg-8">
+            <!-- Version Info Card -->
+            <div class="alert alert-info mb-4" role="alert">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>İlk Yayın:</strong> @Model.PublishedDate.ToString("dd MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("tr-TR"))
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        @if (Model.UpdatedDate.HasValue)
+                        {
+                            <i class="fas fa-edit me-2"></i>
+                            <strong>Son Güncelleme:</strong> @Model.UpdatedDate.Value.ToString("dd MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("tr-TR"))
+                        }
+                        else
+                        {
+                            <small class="text-muted">Henüz güncellenmemiş</small>
+                        }
+                    </div>
+                </div>
+            </div>
+
             <!-- Basic Information Card -->
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
+                    <h6 class="m-0 font-weight-bold text-warning">
                         <i class="fas fa-info-circle me-2"></i>Temel Bilgiler
                     </h6>
                 </div>
@@ -65,7 +95,7 @@
                         <span asp-validation-for="Title" class="text-danger small"></span>
                         <div class="form-text">
                             <small class="text-muted">
-                                <span id="titleCounter">0</span>/200 karakter
+                                <span id="titleCounter">@Model.Title?.Length</span>/200 karakter
                             </small>
                         </div>
                     </div>
@@ -82,7 +112,7 @@
                         <span asp-validation-for="Summary" class="text-danger small"></span>
                         <div class="form-text">
                             <small class="text-muted">
-                                <span id="summaryCounter">0</span>/500 karakter • Boş bırakılırsa içerikten otomatik oluşturulur
+                                <span id="summaryCounter">@(Model.Summary?.Length ?? 0)</span>/500 karakter • Boş bırakılırsa içerikten otomatik oluşturulur
                             </small>
                         </div>
                     </div>
@@ -93,7 +123,6 @@
                             <i class="fas fa-user me-2"></i>Yazar
                         </label>
                         <input asp-for="Author" class="form-control" 
-                               value="Admin" 
                                placeholder="Yazarın adını girin..."
                                maxlength="100" />
                         <span asp-validation-for="Author" class="text-danger small"></span>
@@ -104,7 +133,7 @@
             <!-- Content Card -->
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
+                    <h6 class="m-0 font-weight-bold text-warning">
                         <i class="fas fa-edit me-2"></i>İçerik
                     </h6>
                 </div>
@@ -183,6 +212,10 @@
                             <i class="fas fa-eye me-1"></i>
                             <span id="previewButtonText">Önizleme Göster</span>
                         </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-2" 
+                                onclick="revertChanges()">
+                            <i class="fas fa-undo me-1"></i>Değişiklikleri Geri Al
+                        </button>
                     </div>
 
                     <!-- Preview Area (Initially Hidden) -->
@@ -200,11 +233,49 @@
 
         <!-- Right Column - Settings -->
         <div class="col-lg-4">
-            <!-- Publish Settings Card -->
+            <!-- Current Status Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-info me-2"></i>Mevcut Durum
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>Durum:</strong>
+                        @if (Model.IsPublished)
+                        {
+                            <span class="badge bg-success ms-2">
+                                <i class="fas fa-eye me-1"></i>Yayında
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning ms-2">
+                                <i class="fas fa-edit me-1"></i>Taslak
+                            </span>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <strong>Kategori:</strong>
+                        <span class="badge ms-2" style="background-color: @ViewBag.CurrentCategory?.Color; color: white;">
+                            @ViewBag.CurrentCategory?.Name
+                        </span>
+                    </div>
+                    <div class="mb-0">
+                        <small class="text-muted">
+                            <strong>ID:</strong> @Model.Id<br>
+                            <strong>Oluşturulma:</strong> @Model.PublishedDate.ToString("dd/MM/yyyy HH:mm")
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update Settings Card -->
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-success">
-                        <i class="fas fa-cog me-2"></i>Yayın Ayarları
+                        <i class="fas fa-cog me-2"></i>Güncelleme Ayarları
                     </h6>
                 </div>
                 <div class="card-body">
@@ -219,7 +290,10 @@
                                 <option value="">Kategori seçin...</option>
                                 @foreach (var category in categories)
                                 {
-                                    <option value="@category.Id">@category.Name</option>
+                                    <option value="@category.Id" 
+                                            selected="@(category.Id == Model.CategoryId ? "selected" : null)">
+                                        @category.Name
+                                    </option>
                                 }
                             </select>
                         }
@@ -227,9 +301,9 @@
                         {
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
-                                Henüz kategori yok. 
+                                Kategori bulunamadı. 
                                 <a href="@Url.Action("CreateCategory")" class="alert-link">
-                                    Buradan kategori oluşturabilirsiniz.
+                                    Yeni kategori oluşturun.
                                 </a>
                             </div>
                         }
@@ -243,27 +317,36 @@
                         </label>
                         <div class="form-check">
                             <input asp-for="IsPublished" class="form-check-input" type="checkbox" 
-                                   id="publishCheckbox" checked />
+                                   id="publishCheckbox" />
                             <label class="form-check-label" for="publishCheckbox">
-                                <span id="publishLabel">Hemen yayınla</span>
+                                <span id="publishLabel">
+                                    @(Model.IsPublished ? "Yayında tut" : "Yayınla")
+                                </span>
                             </label>
                         </div>
                         <div class="form-text">
                             <small class="text-muted" id="publishHelp">
-                                İşaretli ise yazı hemen yayınlanır, değilse taslak olarak saklanır.
+                                @if (Model.IsPublished)
+                                {
+                                    <text>İşaretli ise yazı yayında kalmaya devam eder.</text>
+                                }
+                                else
+                                {
+                                    <text>İşaretlerseniz yazı yayınlanır.</text>
+                                }
                             </small>
                         </div>
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-success btn-lg">
+                        <button type="submit" class="btn btn-warning btn-lg">
                             <i class="fas fa-save me-2"></i>
-                            <span id="saveButtonText">Yazıyı Kaydet & Yayınla</span>
+                            <span id="saveButtonText">Değişiklikleri Kaydet</span>
                         </button>
-                        <button type="button" class="btn btn-outline-warning" 
-                                onclick="saveDraft()">
-                            <i class="fas fa-edit me-2"></i>Taslak Olarak Kaydet
+                        <button type="button" class="btn btn-outline-info" 
+                                onclick="previewPost()">
+                            <i class="fas fa-external-link-alt me-2"></i>Yazıyı Görüntüle
                         </button>
                         <a href="@Url.Action("Posts")" class="btn btn-outline-secondary">
                             <i class="fas fa-times me-2"></i>İptal
@@ -272,30 +355,29 @@
                 </div>
             </div>
 
-            <!-- Help Card -->
+            <!-- Changes Summary Card -->
             <div class="card shadow">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-info">
-                        <i class="fas fa-question-circle me-2"></i>Yardım
+                        <i class="fas fa-history me-2"></i>Değişiklik Özeti
                     </h6>
                 </div>
                 <div class="card-body">
-                    <h6 class="text-primary">💡 İpuçları:</h6>
-                    <ul class="small text-muted mb-3">
-                        <li>Başlık SEO için önemli, açıklayıcı olsun</li>
-                        <li>Özet boş bırakılırsa otomatik oluşturulur</li>
-                        <li>HTML etiketleri kullanabilirsiniz</li>
-                        <li>Önizleme ile kontrol edebilirsiniz</li>
-                    </ul>
+                    <div id="changesSummary">
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Henüz değişiklik yapılmadı
+                        </p>
+                    </div>
                     
-                    <h6 class="text-primary">🏷️ HTML Etiketleri:</h6>
-                    <div class="small text-muted">
-                        <code>&lt;h2&gt;</code> <code>&lt;h3&gt;</code> - Başlıklar<br>
-                        <code>&lt;p&gt;</code> - Paragraf<br>
-                        <code>&lt;strong&gt;</code> - Kalın metin<br>
-                        <code>&lt;em&gt;</code> - İtalik metin<br>
-                        <code>&lt;ul&gt;&lt;li&gt;</code> - Liste<br>
-                        <code>&lt;a href=""&gt;</code> - Link
+                    <div class="mt-3 pt-3 border-top">
+                        <h6 class="text-primary">💡 İpuçları:</h6>
+                        <ul class="small text-muted mb-0">
+                            <li>Başlık değişiklikleri SEO'yu etkiler</li>
+                            <li>İçerik önizlemesini kontrol edin</li>
+                            <li>Kategori değişikliği organize etmeyi sağlar</li>
+                            <li>Taslak modu test için kullanışlıdır</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -303,15 +385,68 @@
     </div>
 </form>
 
+<!-- Revert Changes Modal -->
+<div class="modal fade" id="revertModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-undo me-2 text-warning"></i>Değişiklikleri Geri Al
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tüm değişiklikleri geri almak istediğinizden emin misiniz?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Uyarı:</strong> Bu işlem kaydetmediğiniz tüm değişiklikleri siler!
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    İptal
+                </button>
+                <button type="button" class="btn btn-warning" onclick="confirmRevert()">
+                    <i class="fas fa-undo me-1"></i>Evet, Geri Al
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
+        // Store original values for change detection and revert
+        const originalValues = {
+            title: '@Html.Raw(Html.Encode(Model.Title))',
+            summary: '@Html.Raw(Html.Encode(Model.Summary ?? ""))',
+            content: '@Html.Raw(Html.Encode(Model.Content))',
+            author: '@Html.Raw(Html.Encode(Model.Author))',
+            categoryId: '@Model.CategoryId',
+            isPublished: @Model.IsPublished.ToString().ToLower()
+        };
+
         // Character counters
         document.getElementById('Title').addEventListener('input', function() {
             updateCharacterCounter('Title', 'titleCounter', 200);
+            detectChanges();
         });
 
         document.getElementById('Summary').addEventListener('input', function() {
             updateCharacterCounter('Summary', 'summaryCounter', 500);
+            detectChanges();
+        });
+
+        document.getElementById('contentEditor').addEventListener('input', function() {
+            detectChanges();
+        });
+
+        document.getElementById('Author').addEventListener('input', function() {
+            detectChanges();
+        });
+
+        document.querySelector('select[name="CategoryId"]').addEventListener('change', function() {
+            detectChanges();
         });
 
         // Publish checkbox behavior
@@ -321,14 +456,14 @@
             const button = document.getElementById('saveButtonText');
             
             if (this.checked) {
-                label.textContent = 'Hemen yayınla';
-                help.textContent = 'Yazı kaydedilir kaydedilmez yayına alınır.';
-                button.innerHTML = '<i class="fas fa-save me-2"></i>Yazıyı Kaydet & Yayınla';
+                label.textContent = 'Yayında tut';
+                help.textContent = 'Yazı yayında kalacak veya yayınlanacak.';
             } else {
-                label.textContent = 'Taslak olarak kaydet';
-                help.textContent = 'Yazı taslak olarak kaydedilir, daha sonra yayınlayabilirsiniz.';
-                button.innerHTML = '<i class="fas fa-edit me-2"></i>Taslak Olarak Kaydet';
+                label.textContent = 'Yayından kaldır / Taslağa çevir';
+                help.textContent = 'Yazı yayından kaldırılacak veya taslak olarak kalacak.';
             }
+            
+            detectChanges();
         });
 
         // Character counter function
@@ -353,7 +488,66 @@
             }
         }
 
-        // Format text functions for content editor
+        // Change detection
+        function detectChanges() {
+            const currentValues = {
+                title: document.getElementById('Title').value,
+                summary: document.getElementById('Summary').value,
+                content: document.getElementById('contentEditor').value,
+                author: document.getElementById('Author').value,
+                categoryId: document.querySelector('select[name="CategoryId"]').value,
+                isPublished: document.getElementById('publishCheckbox').checked
+            };
+
+            const changes = [];
+            
+            if (currentValues.title !== originalValues.title) {
+                changes.push('Başlık');
+            }
+            if (currentValues.summary !== originalValues.summary) {
+                changes.push('Özet');
+            }
+            if (currentValues.content !== originalValues.content) {
+                changes.push('İçerik');
+            }
+            if (currentValues.author !== originalValues.author) {
+                changes.push('Yazar');
+            }
+            if (currentValues.categoryId !== originalValues.categoryId) {
+                changes.push('Kategori');
+            }
+            if (currentValues.isPublished !== originalValues.isPublished) {
+                changes.push('Yayın Durumu');
+            }
+
+            updateChangesSummary(changes);
+        }
+
+        // Update changes summary
+        function updateChangesSummary(changes) {
+            const summaryDiv = document.getElementById('changesSummary');
+            
+            if (changes.length === 0) {
+                summaryDiv.innerHTML = `
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Henüz değişiklik yapılmadı
+                    </p>
+                `;
+            } else {
+                summaryDiv.innerHTML = `
+                    <p class="text-warning mb-2">
+                        <i class="fas fa-edit me-2"></i>
+                        <strong>${changes.length} değişiklik tespit edildi:</strong>
+                    </p>
+                    <ul class="mb-0 small">
+                        ${changes.map(change => `<li>${change}</li>`).join('')}
+                    </ul>
+                `;
+            }
+        }
+
+        // Format text functions (same as CreatePost)
         function formatText(format) {
             const textarea = document.getElementById('contentEditor');
             const start = textarea.selectionStart;
@@ -398,10 +592,10 @@
             if (formattedText) {
                 textarea.value = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
                 
-                // Set cursor position after inserted text
                 const newPosition = start + formattedText.length;
                 textarea.setSelectionRange(newPosition, newPosition);
                 textarea.focus();
+                detectChanges();
             }
         }
 
@@ -426,42 +620,70 @@
             }
         }
 
-        // Save as draft function
-        function saveDraft() {
-            document.getElementById('publishCheckbox').checked = false;
-            document.getElementById('createPostForm').submit();
+        // Revert changes
+        function revertChanges() {
+            const modal = new bootstrap.Modal(document.getElementById('revertModal'));
+            modal.show();
+        }
+
+        function confirmRevert() {
+            document.getElementById('Title').value = originalValues.title;
+            document.getElementById('Summary').value = originalValues.summary;
+            document.getElementById('contentEditor').value = originalValues.content;
+            document.getElementById('Author').value = originalValues.author;
+            document.querySelector('select[name="CategoryId"]').value = originalValues.categoryId;
+            document.getElementById('publishCheckbox').checked = originalValues.isPublished;
+            
+            // Update character counters
+            updateCharacterCounter('Title', 'titleCounter', 200);
+            updateCharacterCounter('Summary', 'summaryCounter', 500);
+            
+            // Update changes summary
+            detectChanges();
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('revertModal'));
+            modal.hide();
+            
+            // Show notification
+            showNotification('Tüm değişiklikler geri alındı', 'info');
+        }
+
+        // Preview post in new tab
+        function previewPost() {
+            window.open('@Url.Action("Details", "Home", new { id = Model.Id })', '_blank');
         }
 
         // Form validation
-        document.getElementById('createPostForm').addEventListener('submit', function(e) {
+        document.getElementById('editPostForm').addEventListener('submit', function(e) {
             const title = document.getElementById('Title').value.trim();
             const content = document.getElementById('contentEditor').value.trim();
             const category = document.querySelector('select[name="CategoryId"]').value;
             
             if (!title) {
                 e.preventDefault();
-                showValidationError('Yazı başlığı zorunludur.');
+                showNotification('Yazı başlığı zorunludur.', 'error');
                 document.getElementById('Title').focus();
                 return;
             }
             
             if (!content) {
                 e.preventDefault();
-                showValidationError('Yazı içeriği zorunludur.');
+                showNotification('Yazı içeriği zorunludur.', 'error');
                 document.getElementById('contentEditor').focus();
                 return;
             }
             
             if (!category) {
                 e.preventDefault();
-                showValidationError('Kategori seçimi zorunludur.');
+                showNotification('Kategori seçimi zorunludur.', 'error');
                 return;
             }
             
             // Show loading state
             const submitButton = document.querySelector('button[type="submit"]');
             const originalText = submitButton.innerHTML;
-            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Kaydediliyor...';
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Güncelleniyor...';
             submitButton.disabled = true;
             
             // Re-enable button after 10 seconds (in case of slow response)
@@ -471,26 +693,38 @@
             }, 10000);
         });
 
-        function showValidationError(message) {
+        // Show notification
+        function showNotification(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-danger' : 'alert-info';
+            const icon = type === 'success' ? 'fa-check-circle' : 
+                        type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+            
             const alert = `
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-triangle me-2"></i>${message}
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    <i class="fas ${icon} me-2"></i>${message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             `;
             
-            const form = document.getElementById('createPostForm');
-            form.insertAdjacentHTML('beforebegin', alert);
+            // Insert at the top of the page
+            const container = document.querySelector('.row');
+            container.insertAdjacentHTML('beforebegin', alert);
             
             // Scroll to top
             window.scrollTo(0, 0);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alertElement = document.querySelector('.alert');
+                if (alertElement) {
+                    const closeButton = alertElement.querySelector('.btn-close');
+                    if (closeButton) {
+                        closeButton.click();
+                    }
+                }
+            }, 5000);
         }
-
-        // Initialize character counters on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateCharacterCounter('Title', 'titleCounter', 200);
-            updateCharacterCounter('Summary', 'summaryCounter', 500);
-        });
 
         // Auto-save to localStorage (optional feature)
         let autoSaveInterval;
@@ -498,53 +732,144 @@
         function startAutoSave() {
             autoSaveInterval = setInterval(() => {
                 const formData = {
+                    id: @Model.Id,
                     title: document.getElementById('Title').value,
                     summary: document.getElementById('Summary').value,
                     content: document.getElementById('contentEditor').value,
                     author: document.getElementById('Author').value,
                     categoryId: document.querySelector('select[name="CategoryId"]').value,
+                    isPublished: document.getElementById('publishCheckbox').checked,
                     timestamp: new Date().getTime()
                 };
                 
-                localStorage.setItem('blogPostDraft', JSON.stringify(formData));
+                localStorage.setItem(`blogPostEdit_${@Model.Id}`, JSON.stringify(formData));
+                
+                // Show subtle indication that auto-save occurred
+                const saveIndicator = document.getElementById('autoSaveIndicator');
+                if (saveIndicator) {
+                    saveIndicator.style.display = 'inline';
+                    setTimeout(() => {
+                        saveIndicator.style.display = 'none';
+                    }, 2000);
+                }
             }, 30000); // Auto-save every 30 seconds
         }
         
         function loadAutoSave() {
-            const saved = localStorage.getItem('blogPostDraft');
+            const saved = localStorage.getItem(`blogPostEdit_${@Model.Id}`);
             if (saved) {
                 const data = JSON.parse(saved);
                 const now = new Date().getTime();
                 
-                // Only load if saved within last 24 hours
+                // Only load if saved within last 24 hours and has changes
                 if (now - data.timestamp < 24 * 60 * 60 * 1000) {
-                    if (confirm('Daha önce kaydedilmiş taslak bulundu. Yüklemek ister misiniz?')) {
+                    const hasChanges = 
+                        data.title !== originalValues.title ||
+                        data.summary !== originalValues.summary ||
+                        data.content !== originalValues.content ||
+                        data.author !== originalValues.author ||
+                        data.categoryId !== originalValues.categoryId ||
+                        data.isPublished !== originalValues.isPublished;
+                        
+                    if (hasChanges && confirm('Daha önce kaydedilmiş değişiklikler bulundu. Yüklemek ister misiniz?')) {
                         document.getElementById('Title').value = data.title || '';
                         document.getElementById('Summary').value = data.summary || '';
                         document.getElementById('contentEditor').value = data.content || '';
                         document.getElementById('Author').value = data.author || 'Admin';
+                        document.getElementById('publishCheckbox').checked = data.isPublished || false;
+                        
                         if (data.categoryId) {
                             document.querySelector('select[name="CategoryId"]').value = data.categoryId;
                         }
                         
-                        // Update character counters
+                        // Update character counters and change detection
                         updateCharacterCounter('Title', 'titleCounter', 200);
                         updateCharacterCounter('Summary', 'summaryCounter', 500);
+                        detectChanges();
+                        
+                        showNotification('Önceki değişiklikler geri yüklendi', 'info');
                     }
                 }
             }
         }
-        
-        // Initialize auto-save
+
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize character counters
+            updateCharacterCounter('Title', 'titleCounter', 200);
+            updateCharacterCounter('Summary', 'summaryCounter', 500);
+            
+            // Initialize change detection
+            detectChanges();
+            
+            // Load auto-save if exists
             loadAutoSave();
+            
+            // Start auto-save
             startAutoSave();
+            
+            // Add auto-save indicator to page
+            const saveButton = document.querySelector('button[type="submit"]');
+            if (saveButton) {
+                saveButton.insertAdjacentHTML('afterend', `
+                    <small id="autoSaveIndicator" class="text-muted ms-2" style="display: none;">
+                        <i class="fas fa-save me-1"></i>Otomatik kaydedildi
+                    </small>
+                `);
+            }
         });
-        
+
         // Clear auto-save on successful submit
-        document.getElementById('createPostForm').addEventListener('submit', function() {
-            localStorage.removeItem('blogPostDraft');
+        document.getElementById('editPostForm').addEventListener('submit', function() {
+            localStorage.removeItem(`blogPostEdit_${@Model.Id}`);
             clearInterval(autoSaveInterval);
+        });
+
+        // Warn user about unsaved changes before leaving
+        window.addEventListener('beforeunload', function(e) {
+            const currentValues = {
+                title: document.getElementById('Title').value,
+                summary: document.getElementById('Summary').value,
+                content: document.getElementById('contentEditor').value,
+                author: document.getElementById('Author').value,
+                categoryId: document.querySelector('select[name="CategoryId"]').value,
+                isPublished: document.getElementById('publishCheckbox').checked
+            };
+
+            const hasChanges = 
+                currentValues.title !== originalValues.title ||
+                currentValues.summary !== originalValues.summary ||
+                currentValues.content !== originalValues.content ||
+                currentValues.author !== originalValues.author ||
+                currentValues.categoryId !== originalValues.categoryId ||
+                currentValues.isPublished !== originalValues.isPublished;
+
+            if (hasChanges) {
+                e.preventDefault();
+                e.returnValue = 'Kaydedilmemiş değişiklikleriniz var. Sayfayı kapatmak istediğinizden emin misiniz?';
+                return e.returnValue;
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+S or Cmd+S to save
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                document.getElementById('editPostForm').submit();
+            }
+            
+            // Ctrl+Z or Cmd+Z to revert (when not in textarea)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                revertChanges();
+            }
+            
+            // Ctrl+P or Cmd+P to preview
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                previewPost();
+            }
         });
     </script>
 
@@ -555,8 +880,8 @@
         }
         
         .form-control:focus, .form-select:focus {
-            border-color: #4e73df;
-            box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+            border-color: #f6c23e;
+            box-shadow: 0 0 0 0.2rem rgba(246, 194, 62, 0.25);
         }
         
         .btn-toolbar .btn-group {
@@ -587,8 +912,8 @@
         }
         
         .form-check-input:checked {
-            background-color: #4e73df;
-            border-color: #4e73df;
+            background-color: #f6c23e;
+            border-color: #f6c23e;
         }
         
         code {
@@ -597,5 +922,22 @@
             padding: 0.125rem 0.25rem;
             border-radius: 0.25rem;
         }
+        
+        .badge {
+            font-size: 0.75rem;
+        }
+        
+        /* Change highlight animations */
+        .changed {
+            background-color: #fff3cd !important;
+            border-color: #f6c23e !important;
+            transition: all 0.3s ease;
+        }
+        
+        /* Auto-save indicator */
+        #autoSaveIndicator {
+            animation: fadeInOut 0.5s ease-in-out;
+        }
+        
     </style>
 }

@@ -88,61 +88,152 @@ namespace MultiTenantBlog.Controllers
         public async Task<IActionResult> CreatePost()
         {
             if (CurrentTenant == null)
-                return RedirectToAction("TenantNotFound", "Error");
+            {
+                TempData["ErrorMessage"] = "Tenant bulunamadı.";
+                return RedirectToAction("Index", "Home");
+            }
 
-            // Dropdown için kategorileri hazırla
-            ViewBag.Categories = await _context.Categories
-                .Where(c => c.TenantId == CurrentTenant.Id)
-                .OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name })
-                .ToListAsync();
+            try
+            {
+                // Debug için log ekleyelim
+                Console.WriteLine($"Current Tenant ID: {CurrentTenant.Id}");
+                Console.WriteLine($"Current Tenant Name: {CurrentTenant.Name}");
 
-            return View();
+                // Kategorileri getir
+                var categories = await _context.Categories
+                    .Where(c => c.TenantId == CurrentTenant.Id)
+                    .OrderBy(c => c.Name)
+                    .ToListAsync();
+
+                Console.WriteLine($"Found {categories.Count} categories for tenant {CurrentTenant.Id}");
+
+                // ViewBag'e basit liste olarak gönder
+                ViewBag.Categories = categories.Select(c => new { Id = c.Id, Name = c.Name }).ToList();
+
+                // Eğer kategori yoksa uyarı ver
+                if (!categories.Any())
+                {
+                    TempData["ErrorMessage"] = "Bu tenant için kategori bulunamadı. Önce bir kategori oluşturun.";
+                }
+
+                return View();
+            }
+            catch (Exception ex)
+            {
+                // Hata durumunda detaylı log
+                Console.WriteLine($"Error in CreatePost: {ex.Message}");
+                Console.WriteLine($"StackTrace: {ex.StackTrace}");
+
+                // Boş liste gönder
+                ViewBag.Categories = new List<object>();
+                TempData["ErrorMessage"] = "Kategoriler yüklenirken bir hata oluştu: " + ex.Message;
+
+                return View();
+            }
         }
 
         /// <summary>
-        /// Yeni blog yazısı kaydetme (POST)
+        /// Yeni blog yazısı kaydetme (POST) - Düzeltilmiş versiyon
         /// </summary>
         [HttpPost]
-        [ValidateAntiForgeryToken] // CSRF saldırılarına karşı koruma
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreatePost(BlogPost model)
         {
+            // Debug için console'a yazdır
+            Console.WriteLine($"CreatePost POST called. Title: {model.Title}");
+            Console.WriteLine($"ModelState.IsValid: {ModelState.IsValid}");
+            
             if (CurrentTenant == null)
-                return RedirectToAction("TenantNotFound", "Error");
-
-            // Model validation kontrolü
-            if (ModelState.IsValid)
             {
-                // Yeni blog yazısını hazırla
-                model.TenantId = CurrentTenant.Id;
-                model.PublishedDate = DateTime.Now;
-                
-                // Eğer Summary (özet) boşsa, Content'in ilk 200 karakterini kullan
-                if (string.IsNullOrEmpty(model.Summary) && !string.IsNullOrEmpty(model.Content))
+                TempData["ErrorMessage"] = "Tenant bulunamadı.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // Model state hatalarını kontrol et
+            if (!ModelState.IsValid)
+            {
+                // Hataları konsola yazdır
+                foreach (var error in ModelState)
                 {
-                    var plainText = System.Text.RegularExpressions.Regex.Replace(model.Content, "<.*?>", "");
-                    model.Summary = plainText.Length > 200 
+                    Console.WriteLine($"ModelState Error - Key: {error.Key}, Errors: {string.Join(", ", error.Value.Errors.Select(e => e.ErrorMessage))}");
+                }
+
+                // Kategorileri tekrar yükle
+                await LoadCategoriesForView();
+                TempData["ErrorMessage"] = "Form verilerinde hata var. Lütfen kontrol edin.";
+                return View(model);
+            }
+
+            try
+            {
+                // Yeni post oluştur
+                var newPost = new BlogPost
+                {
+                    TenantId = CurrentTenant.Id,
+                    Title = model.Title.Trim(),
+                    Content = model.Content.Trim(),
+                    Summary = string.IsNullOrWhiteSpace(model.Summary) ? null : model.Summary.Trim(),
+                    Author = string.IsNullOrWhiteSpace(model.Author) ? "Admin" : model.Author.Trim(),
+                    CategoryId = model.CategoryId,
+                    IsPublished = model.IsPublished,
+                    PublishedDate = DateTime.Now
+                };
+
+                // Eğer Summary boşsa, Content'in ilk 200 karakterini kullan
+                if (string.IsNullOrEmpty(newPost.Summary) && !string.IsNullOrEmpty(newPost.Content))
+                {
+                    var plainText = System.Text.RegularExpressions.Regex.Replace(newPost.Content, "<.*?>", "");
+                    newPost.Summary = plainText.Length > 200 
                         ? plainText.Substring(0, 200) + "..." 
                         : plainText;
                 }
 
                 // Veritabanına ekle
-                _context.BlogPosts.Add(model);
-                await _context.SaveChangesAsync();
+                _context.BlogPosts.Add(newPost);
+                var result = await _context.SaveChangesAsync();
+
+                Console.WriteLine($"SaveChanges result: {result}");
+                Console.WriteLine($"New post ID: {newPost.Id}");
 
                 // Başarı mesajı
-                TempData["SuccessMessage"] = "Blog yazısı başarıyla oluşturuldu!";
+                var statusMessage = newPost.IsPublished ? "yayınlandı" : "taslak olarak kaydedildi";
+                TempData["SuccessMessage"] = $"'{newPost.Title}' başlıklı yazı başarıyla {statusMessage}!";
+                
                 return RedirectToAction(nameof(Posts));
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"CreatePost Error: {ex.Message}");
+                Console.WriteLine($"InnerException: {ex.InnerException?.Message}");
+                Console.WriteLine($"StackTrace: {ex.StackTrace}");
 
-            // Hata durumunda kategorileri tekrar yükle
-            ViewBag.Categories = await _context.Categories
-                .Where(c => c.TenantId == CurrentTenant.Id)
-                .OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name })
-                .ToListAsync();
+                // Kategorileri tekrar yükle
+                await LoadCategoriesForView();
+                
+                TempData["ErrorMessage"] = $"Yazı kaydedilirken bir hata oluştu: {ex.Message}";
+                return View(model);
+            }
+        }
 
-            return View(model);
+        /// <summary>
+        /// Kategorileri ViewBag'e yükler
+        /// </summary>
+        private async Task LoadCategoriesForView()
+        {
+            if (CurrentTenant != null)
+            {
+                var categories = await _context.Categories
+                    .Where(c => c.TenantId == CurrentTenant.Id)
+                    .OrderBy(c => c.Name)
+                    .Select(c => new { c.Id, c.Name })
+                    .ToListAsync();
+
+                ViewBag.Categories = categories;
+            }
+            else
+            {
+                ViewBag.Categories = new List<object>();
+            }
         }
 
         /// <summary>
@@ -160,12 +251,14 @@ namespace MultiTenantBlog.Controllers
             if (post == null)
                 return NotFound("Blog yazısı bulunamadı.");
 
-            // Kategorileri dropdown için hazırla
-            ViewBag.Categories = await _context.Categories
+            // Kategorileri dropdown için hazırla - Düzeltilmiş versiyon
+            var categories = await _context.Categories
                 .Where(c => c.TenantId == CurrentTenant.Id)
                 .OrderBy(c => c.Name)
                 .Select(c => new { c.Id, c.Name })
                 .ToListAsync();
+
+            ViewBag.Categories = categories;
 
             return View(post);
         }
