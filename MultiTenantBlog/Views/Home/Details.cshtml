@@ -1,0 +1,166 @@
+@model MultiTenantBlog.Models.BlogPost
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<!-- Blog Post Detail -->
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Post Header -->
+        <div class="mb-4">
+            <!-- Back Button -->
+            <a href="@Url.Action("Index")" class="btn btn-outline-secondary mb-3">
+                <i class="fas fa-arrow-left me-1"></i>Geri Dön
+            </a>
+            
+            <!-- Category Badge -->
+            <div class="mb-3">
+                <span class="badge category-badge fs-6" style="background-color: @Model.Category.Color;">
+                    <i class="fas fa-tag me-1"></i>@Model.Category.Name
+                </span>
+            </div>
+            
+            <!-- Post Title -->
+            <h1 class="display-5 fw-bold mb-3">@Model.Title</h1>
+            
+            <!-- Post Meta -->
+            <div class="post-meta mb-4 pb-3 border-bottom">
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-user me-1"></i>
+                            <strong>Yazar:</strong> @Model.Author
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            <strong>Yayın Tarihi:</strong> @Model.PublishedDate.ToString("dd MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("tr-TR"))
+                        </small>
+                    </div>
+                </div>
+                
+                @if (Model.UpdatedDate.HasValue)
+                {
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <small class="text-muted">
+                                <i class="fas fa-edit me-1"></i>
+                                <strong>Son Güncelleme:</strong> @Model.UpdatedDate.Value.ToString("dd MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("tr-TR"))
+                            </small>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        <!-- Post Image Placeholder -->
+        <div class="mb-4">
+            <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 300px;">
+                <i class="fas fa-image fa-4x text-muted"></i>
+                <span class="ms-3 text-muted">Blog Yazısı Görseli</span>
+            </div>
+        </div>
+        
+        <!-- Post Summary (if exists) -->
+        @if (!string.IsNullOrEmpty(Model.Summary))
+        {
+            <div class="alert alert-light mb-4">
+                <h6 class="alert-heading">
+                    <i class="fas fa-info-circle me-1"></i>Özet
+                </h6>
+                <p class="mb-0">@Model.Summary</p>
+            </div>
+        }
+        
+        <!-- Post Content -->
+        <div class="post-content mb-5">
+            <!-- HTML içeriği güvenli şekilde render et -->
+            <div class="content-body" style="line-height: 1.8; font-size: 1.1rem;">
+                @Html.Raw(Model.Content)
+            </div>
+        </div>
+        
+        <!-- Post Actions -->
+        <div class="post-actions border-top pt-4 mb-5">
+            <div class="row">
+                <div class="col-md-6">
+                    <!-- Share Buttons (gelecekte implement edilebilir) -->
+                    <h6 class="text-muted mb-3">
+                        <i class="fas fa-share-alt me-1"></i>Paylaş
+                    </h6>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm" disabled>
+                            <i class="fab fa-twitter"></i> Twitter
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" disabled>
+                            <i class="fab fa-facebook"></i> Facebook
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" disabled>
+                            <i class="fab fa-linkedin"></i> LinkedIn
+                        </button>
+                    </div>
+                    <p><small class="text-muted">Paylaşım özelliği yakında eklenecek</small></p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <!-- Admin Actions (sadece geliştirme için) -->
+                    <h6 class="text-muted mb-3">
+                        <i class="fas fa-tools me-1"></i>Yönetim
+                    </h6>
+                    <div class="btn-group" role="group">
+                        <a href="@Url.Action("Edit", "Admin", new { id = Model.Id })" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-edit"></i> Düzenle
+                        </a>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete(@Model.Id)">
+                            <i class="fas fa-trash"></i> Sil
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Related Posts (gelecekte eklenebilir) -->
+        <div class="related-posts">
+            <h5 class="mb-3">
+                <i class="fas fa-newspaper me-2"></i>İlgili Yazılar
+            </h5>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-1"></i>
+                <strong>Geliştirme Notu:</strong> İlgili yazılar özelliği gelecek güncellemelerde eklenecek.
+                Aynı kategorideki diğer yazılar burada listelenecek.
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Delete confirmation
+        function confirmDelete(postId) {
+            if (confirm('Bu yazıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+                // AJAX ile silme işlemi (gelecekte implement edilecek)
+                alert('Silme özelliği henüz implement edilmedi. Admin panelinden silebilirsiniz.');
+            }
+        }
+        
+        // Content styling improvements
+        document.addEventListener('DOMContentLoaded', function() {
+            const contentBody = document.querySelector('.content-body');
+            if (contentBody) {
+                // Paragraflar arası boşluk ekle
+                const paragraphs = contentBody.querySelectorAll('p');
+                paragraphs.forEach(p => {
+                    p.style.marginBottom = '1rem';
+                });
+                
+                // Başlıkları stil
+                const headings = contentBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                headings.forEach(h => {
+                    h.style.marginTop = '2rem';
+                    h.style.marginBottom = '1rem';
+                    h.style.color = '#333';
+                });
+            }
+        });
+    </script>
+}
