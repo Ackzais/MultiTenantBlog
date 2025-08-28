@@ -13,10 +13,29 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Multi-tenant servisini ekle (bu servisi bir sonraki adımda oluşturacağız)
+// Multi-tenant servisini ekle
 builder.Services.AddScoped<ITenantService, TenantService>();
 
 var app = builder.Build();
+
+// ⭐ SEED DATA - Geliştirme ortamında test verisi ekle
+if (app.Environment.IsDevelopment())
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        try
+        {
+            // Veritabanını test verisiyle doldur
+            await SeedData.InitializeAsync(services);
+        }
+        catch (Exception ex)
+        {
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            logger.LogError(ex, "Seed data oluşturulurken bir hata oluştu.");
+        }
+    }
+}
 
 // HTTP request pipeline'ını konfigüre edin
 
