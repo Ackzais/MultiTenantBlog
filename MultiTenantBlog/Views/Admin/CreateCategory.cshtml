@@ -1,0 +1,807 @@
+@model MultiTenantBlog.Models.Category
+@{
+    ViewData["Title"] = "Kategoriyi Düzenle";
+}
+
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-1">
+                    <i class="fas fa-edit me-2 text-warning"></i>
+                    Kategoriyi Düzenle
+                </h1>
+                <p class="text-muted mb-0">
+                    <strong>@Model.Name</strong> kategorisini düzenliyorsunuz
+                </p>
+            </div>
+            <div>
+                <a href="@Url.Action("Category", "Home", new { id = Model.Id })" 
+                   class="btn btn-outline-info" target="_blank">
+                    <i class="fas fa-external-link-alt me-1"></i>Kategoriyi Görüntüle
+                </a>
+                <a href="@Url.Action("Categories")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Kategoriler
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Validation Summary -->
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Lütfen aşağıdaki hataları düzeltin:</strong>
+        <ul class="mb-0 mt-2">
+            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <li>@error.ErrorMessage</li>
+            }
+        </ul>
+    </div>
+}
+
+<!-- Main Form -->
+<div class="row">
+    <div class="col-lg-8">
+        <form asp-action="EditCategory" method="post" id="editCategoryForm">
+            @Html.AntiForgeryToken()
+            @Html.HiddenFor(m => m.Id)
+            @Html.HiddenFor(m => m.TenantId)
+            
+            <!-- Category Info Alert -->
+            <div class="alert alert-info mb-4" role="alert">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Kategori ID:</strong> @Model.Id
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <i class="fas fa-file-alt me-2"></i>
+                        <strong>Yazı Sayısı:</strong> @(Model.BlogPosts?.Count ?? 0) adet
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-info-circle me-2"></i>Kategori Bilgileri
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <!-- Category Name -->
+                    <div class="mb-4">
+                        <label asp-for="Name" class="form-label fw-bold">
+                            <i class="fas fa-tag me-2"></i>Kategori Adı *
+                        </label>
+                        <input asp-for="Name" class="form-control form-control-lg" 
+                               placeholder="Kategori adını girin..."
+                               maxlength="100" />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                        <div class="form-text">
+                            <small class="text-muted">
+                                <span id="nameCounter">@Model.Name?.Length</span>/100 karakter
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Category Description -->
+                    <div class="mb-4">
+                        <label asp-for="Description" class="form-label fw-bold">
+                            <i class="fas fa-align-left me-2"></i>Açıklama
+                            <small class="text-muted">(Opsiyonel)</small>
+                        </label>
+                        <textarea asp-for="Description" class="form-control" rows="4" 
+                                  placeholder="Bu kategori hakkında kısa bir açıklama yazabilirsiniz..."
+                                  maxlength="300"></textarea>
+                        <span asp-validation-for="Description" class="text-danger small"></span>
+                        <div class="form-text">
+                            <small class="text-muted">
+                                <span id="descriptionCounter">@(Model.Description?.Length ?? 0)</span>/300 karakter
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Color Picker -->
+                    <div class="mb-4">
+                        <label asp-for="Color" class="form-label fw-bold">
+                            <i class="fas fa-palette me-2"></i>Kategori Rengi
+                        </label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <input asp-for="Color" type="color" class="form-control form-control-color" 
+                                           title="Renk seçin">
+                                    <input type="text" class="form-control" id="colorHex" 
+                                           placeholder="#007bff" maxlength="7" value="@Model.Color">
+                                </div>
+                                <span asp-validation-for="Color" class="text-danger small"></span>
+                                <div class="form-text">
+                                    <small class="text-muted">Blog'da kategori badge'lerinde kullanılır</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <!-- Color Preview -->
+                                <div class="d-flex align-items-center h-100">
+                                    <div class="me-3">
+                                        <div id="colorPreview" 
+                                             style="width: 60px; height: 40px; background-color: @Model.Color; border-radius: 8px; border: 2px solid #dee2e6;">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="badge" id="badgePreview" style="background-color: @Model.Color; color: white; font-size: 0.9rem;">
+                                            <i class="fas fa-tag me-1"></i>@Model.Name
+                                        </span>
+                                        <div><small class="text-muted">Badge önizlemesi</small></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preset Colors -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-swatchbook me-2"></i>Önerilen Renkler
+                        </label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #e74c3c;"
+                                    onclick="selectColor('#e74c3c')" title="Kırmızı">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #3498db;"
+                                    onclick="selectColor('#3498db')" title="Mavi">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #2ecc71;"
+                                    onclick="selectColor('#2ecc71')" title="Yeşil">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #f39c12;"
+                                    onclick="selectColor('#f39c12')" title="Turuncu">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #9b59b6;"
+                                    onclick="selectColor('#9b59b6')" title="Mor">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #1abc9c;"
+                                    onclick="selectColor('#1abc9c')" title="Turkuaz">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #e91e63;"
+                                    onclick="selectColor('#e91e63')" title="Pembe">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #ff5722;"
+                                    onclick="selectColor('#ff5722')" title="Turuncu Kırmızı">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #795548;"
+                                    onclick="selectColor('#795548')" title="Kahverengi">
+                            </button>
+                            <button type="button" class="btn p-0 border" 
+                                    style="width: 40px; height: 40px; background-color: #607d8b;"
+                                    onclick="selectColor('#607d8b')" title="Gri Mavi">
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            <small class="text-muted">Hızlı seçim için önerilen renklere tıklayın</small>
+                        </div>
+                    </div>
+
+                    <!-- Change Detection -->
+                    <div id="changesAlert" class="alert alert-warning" style="display: none;">
+                        <i class="fas fa-edit me-2"></i>
+                        <strong>Değişiklikler tespit edildi:</strong>
+                        <ul id="changesList" class="mb-0 mt-2"></ul>
+                    </div>
+
+                    <!-- Form Buttons -->
+                    <div class="d-flex gap-2 justify-content-between">
+                        <div>
+                            <button type="button" class="btn btn-outline-secondary" onclick="revertChanges()">
+                                <i class="fas fa-undo me-1"></i>Değişiklikleri Geri Al
+                            </button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="@Url.Action("Categories")" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>İptal
+                            </a>
+                            <button type="button" class="btn btn-outline-info" onclick="previewCategory()">
+                                <i class="fas fa-eye me-1"></i>Önizleme
+                            </button>
+                            <button type="submit" class="btn btn-warning" id="submitButton">
+                                <i class="fas fa-save me-1"></i>Değişiklikleri Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right Column - Preview & Info -->
+    <div class="col-lg-4">
+        <!-- Live Preview Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-info">
+                    <i class="fas fa-eye me-2"></i>Canlı Önizleme
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div id="livePreview" 
+                         style="width: 100px; height: 100px; background-color: @Model.Color; border-radius: 50%; margin: 0 auto; border: 3px solid #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <h5 id="previewName" class="mb-2">@Model.Name</h5>
+                    <span class="badge mb-3" id="previewBadge" style="background-color: @Model.Color; color: white; font-size: 1rem; padding: 0.5rem 1rem;">
+                        <i class="fas fa-tag me-1"></i><span id="previewBadgeText">@Model.Name</span>
+                    </span>
+                    <p id="previewDescription" class="text-muted small">
+                        @(Model.Description ?? "Kategori açıklaması")
+                    </p>
+                </div>
+                
+                <div class="border-top pt-3 mt-3">
+                    <h6 class="text-muted">Blog'da nasıl görünür:</h6>
+                    <div class="bg-light p-2 rounded">
+                        <small class="text-muted d-block mb-1">Blog yazısı başlığı</small>
+                        <span class="badge" id="blogPreviewBadge" style="background-color: @Model.Color; color: white;">
+                            <i class="fas fa-tag me-1"></i><span id="blogPreviewText">@Model.Name</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Statistics -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-success">
+                    <i class="fas fa-chart-bar me-2"></i>Kategori İstatistikleri
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-primary mb-1">@(Model.BlogPosts?.Count ?? 0)</h4>
+                            <small class="text-muted">Toplam Yazı</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success mb-1">@(Model.BlogPosts?.Count(p => p.IsPublished) ?? 0)</h4>
+                        <small class="text-muted">Yayınlanan</small>
+                    </div>
+                </div>
+                
+                @if (Model.BlogPosts != null && Model.BlogPosts.Any())
+                {
+                    <div class="mt-3 pt-3 border-top">
+                        <h6 class="text-muted mb-2">Son Yazılar:</h6>
+                        @foreach (var post in Model.BlogPosts.OrderByDescending(p => p.PublishedDate).Take(3))
+                        {
+                            <div class="mb-2">
+                                <a href="@Url.Action("Details", "Home", new { id = post.Id })" 
+                                   class="text-decoration-none small" target="_blank">
+                                    @post.Title
+                                </a>
+                                <br>
+                                <small class="text-muted">@post.PublishedDate.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        }
+                        
+                        @if (Model.BlogPosts.Count > 3)
+                        {
+                            <small class="text-muted">
+                                ve @(Model.BlogPosts.Count - 3) yazı daha...
+                            </small>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center mt-3 pt-3 border-top">
+                        <i class="fas fa-file-alt fa-2x text-muted mb-2"></i>
+                        <p class="text-muted small mb-0">
+                            Bu kategoride henüz yazı yok
+                        </p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card shadow border-danger">
+            <div class="card-header bg-danger text-white py-3">
+                <h6 class="m-0 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Tehlikeli İşlemler
+                </h6>
+            </div>
+            <div class="card-body">
+                @if (Model.BlogPosts == null || !Model.BlogPosts.Any())
+                {
+                    <p class="text-danger small mb-3">
+                        <i class="fas fa-trash me-1"></i>
+                        Bu kategoriyi kalıcı olarak silebilirsiniz.
+                    </p>
+                    <button type="button" class="btn btn-danger btn-sm w-100" onclick="confirmDelete()">
+                        <i class="fas fa-trash me-1"></i>Kategoriyi Sil
+                    </button>
+                }
+                else
+                {
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Bu kategoriye ait @(Model.BlogPosts.Count) yazı olduğu için silinemiyor.
+                        Önce yazıları başka kategoriye taşıyın.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-trash me-2 text-danger"></i>Kategoriyi Sil
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>DİKKAT!</strong> Bu işlem geri alınamaz!
+                </div>
+                <p>
+                    <strong>@Model.Name</strong> kategorisini kalıcı olarak silmek istediğinizden emin misiniz?
+                </p>
+                <p class="text-muted small">
+                    Bu kategori silinecek ancak hiç yazısı olmadığı için güvenli bir işlemdir.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    İptal
+                </button>
+                <form asp-action="DeleteCategory" asp-route-id="@Model.Id" method="post" style="display: inline;">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>Evet, Sil
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-eye me-2 text-info"></i>Kategori Önizlemesi
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div id="modalPreviewCircle" 
+                         style="width: 120px; height: 120px; background-color: @Model.Color; border-radius: 50%; margin: 0 auto; border: 4px solid #fff; box-shadow: 0 8px 16px rgba(0,0,0,0.15);">
+                    </div>
+                    <h3 id="modalPreviewName" class="mt-3 mb-2">@Model.Name</h3>
+                    <p id="modalPreviewDescription" class="text-muted">@Model.Description</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-primary">Admin Panelinde:</h6>
+                        <div class="bg-light p-3 rounded mb-3">
+                            <div class="d-flex align-items-center">
+                                <span class="badge me-2" id="modalAdminBadge" style="background-color: @Model.Color; color: white;">
+                                    <i class="fas fa-tag"></i>
+                                </span>
+                                <div>
+                                    <strong id="modalAdminName">@Model.Name</strong>
+                                    <small class="d-block text-muted" id="modalAdminDesc">@Model.Description</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-primary">Blog Sayfasında:</h6>
+                        <div class="bg-light p-3 rounded mb-3">
+                            <h6 class="mb-2">Örnek Blog Yazısı</h6>
+                            <span class="badge" id="modalBlogBadge" style="background-color: @Model.Color; color: white;">
+                                <i class="fas fa-tag me-1"></i><span id="modalBlogName">@Model.Name</span>
+                            </span>
+                            <p class="mt-2 mb-0 text-muted small">
+                                Bu kategori altındaki yazılar bu şekilde görünecek.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Kapat
+                </button>
+                <button type="button" class="btn btn-warning" onclick="submitForm()">
+                    <i class="fas fa-save me-1"></i>Değişiklikleri Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Store original values for change detection
+        const originalValues = {
+            name: '@Html.Raw(Html.Encode(Model.Name))',
+            description: '@Html.Raw(Html.Encode(Model.Description ?? ""))',
+            color: '@Model.Color'
+        };
+
+        // Character counters and change detection
+        document.getElementById('Name').addEventListener('input', function() {
+            updateCharacterCounter('Name', 'nameCounter', 100);
+            updateLivePreview();
+            detectChanges();
+        });
+
+        document.getElementById('Description').addEventListener('input', function() {
+            updateCharacterCounter('Description', 'descriptionCounter', 300);
+            updateLivePreview();
+            detectChanges();
+        });
+
+        // Color picker synchronization
+        document.getElementById('Color').addEventListener('input', function() {
+            const color = this.value;
+            document.getElementById('colorHex').value = color;
+            updateColorPreview(color);
+            updateLivePreview();
+            detectChanges();
+        });
+
+        document.getElementById('colorHex').addEventListener('input', function() {
+            const color = this.value;
+            if (isValidHexColor(color)) {
+                document.getElementById('Color').value = color;
+                updateColorPreview(color);
+                updateLivePreview();
+                detectChanges();
+            }
+        });
+
+        // Change detection
+        function detectChanges() {
+            const currentValues = {
+                name: document.getElementById('Name').value,
+                description: document.getElementById('Description').value,
+                color: document.getElementById('Color').value
+            };
+
+            const changes = [];
+            
+            if (currentValues.name !== originalValues.name) {
+                changes.push('Kategori Adı');
+            }
+            if (currentValues.description !== originalValues.description) {
+                changes.push('Açıklama');
+            }
+            if (currentValues.color !== originalValues.color) {
+                changes.push('Renk');
+            }
+
+            const alertDiv = document.getElementById('changesAlert');
+            const changesList = document.getElementById('changesList');
+
+            if (changes.length > 0) {
+                changesList.innerHTML = changes.map(change => `<li>${change}</li>`).join('');
+                alertDiv.style.display = 'block';
+            } else {
+                alertDiv.style.display = 'none';
+            }
+        }
+
+        // Revert changes
+        function revertChanges() {
+            if (confirm('Tüm değişiklikleri geri almak istediğinizden emin misiniz?')) {
+                document.getElementById('Name').value = originalValues.name;
+                document.getElementById('Description').value = originalValues.description;
+                document.getElementById('Color').value = originalValues.color;
+                document.getElementById('colorHex').value = originalValues.color;
+                
+                updateCharacterCounter('Name', 'nameCounter', 100);
+                updateCharacterCounter('Description', 'descriptionCounter', 300);
+                updateColorPreview(originalValues.color);
+                updateLivePreview();
+                detectChanges();
+                
+                showNotification('Tüm değişiklikler geri alındı', 'info');
+            }
+        }
+
+        // All other functions (same as CreateCategory)
+        function updateCharacterCounter(fieldId, counterId, maxLength) {
+            const field = document.getElementById(fieldId);
+            const counter = document.getElementById(counterId);
+            const length = field.value.length;
+            
+            counter.textContent = length;
+            
+            if (length > maxLength * 0.9) {
+                counter.classList.add('text-warning');
+            } else {
+                counter.classList.remove('text-warning');
+            }
+            
+            if (length >= maxLength) {
+                counter.classList.add('text-danger');
+                counter.classList.remove('text-warning');
+            } else {
+                counter.classList.remove('text-danger');
+            }
+        }
+
+        function isValidHexColor(hex) {
+            return /^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(hex);
+        }
+
+        function selectColor(color) {
+            document.getElementById('Color').value = color;
+            document.getElementById('colorHex').value = color;
+            updateColorPreview(color);
+            updateLivePreview();
+            detectChanges();
+            
+            const buttons = document.querySelectorAll('button[onclick*="selectColor"]');
+            buttons.forEach(btn => btn.classList.remove('border-primary', 'border-3'));
+            event.target.classList.add('border-primary', 'border-3');
+        }
+
+        function updateColorPreview(color) {
+            document.getElementById('colorPreview').style.backgroundColor = color;
+            document.getElementById('badgePreview').style.backgroundColor = color;
+        }
+
+        function updateLivePreview() {
+            const name = document.getElementById('Name').value || originalValues.name;
+            const description = document.getElementById('Description').value || 'Kategori açıklaması';
+            const color = document.getElementById('Color').value;
+            
+            document.getElementById('previewName').textContent = name;
+            document.getElementById('previewDescription').textContent = description;
+            document.getElementById('previewBadgeText').textContent = name;
+            document.getElementById('blogPreviewText').textContent = name;
+            
+            document.getElementById('livePreview').style.backgroundColor = color;
+            document.getElementById('previewBadge').style.backgroundColor = color;
+            document.getElementById('blogPreviewBadge').style.backgroundColor = color;
+        }
+
+        function previewCategory() {
+            const name = document.getElementById('Name').value;
+            const description = document.getElementById('Description').value;
+            const color = document.getElementById('Color').value;
+            
+            document.getElementById('modalPreviewName').textContent = name;
+            document.getElementById('modalPreviewDescription').textContent = description;
+            document.getElementById('modalPreviewCircle').style.backgroundColor = color;
+            document.getElementById('modalAdminName').textContent = name;
+            document.getElementById('modalAdminDesc').textContent = description;
+            document.getElementById('modalAdminBadge').style.backgroundColor = color;
+            document.getElementById('modalBlogName').textContent = name;
+            document.getElementById('modalBlogBadge').style.backgroundColor = color;
+            
+            const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+            modal.show();
+        }
+
+        function confirmDelete() {
+            const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+
+        function submitForm() {
+            document.getElementById('editCategoryForm').submit();
+        }
+
+        function showNotification(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-danger' : 'alert-info';
+            const icon = type === 'success' ? 'fa-check-circle' : 
+                        type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+            
+            const alert = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    <i class="fas ${icon} me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            const container = document.querySelector('.row');
+            container.insertAdjacentHTML('beforebegin', alert);
+            
+            window.scrollTo(0, 0);
+            
+            setTimeout(() => {
+                const alertElement = document.querySelector('.alert');
+                if (alertElement) {
+                    const closeButton = alertElement.querySelector('.btn-close');
+                    if (closeButton) {
+                        closeButton.click();
+                    }
+                }
+            }, 5000);
+        }
+
+        // Form validation
+        document.getElementById('editCategoryForm').addEventListener('submit', function(e) {
+            const name = document.getElementById('Name').value.trim();
+            const color = document.getElementById('Color').value;
+            
+            if (!name) {
+                e.preventDefault();
+                showNotification('Kategori adı zorunludur.', 'error');
+                document.getElementById('Name').focus();
+                return;
+            }
+            
+            if (!isValidHexColor(color)) {
+                e.preventDefault();
+                showNotification('Geçersiz renk kodu. Lütfen geçerli bir hex renk kodu girin.', 'error');
+                document.getElementById('colorHex').focus();
+                return;
+            }
+            
+            // Show loading state
+            const submitButton = document.getElementById('submitButton');
+            const originalText = submitButton.innerHTML;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Güncelleniyor...';
+            submitButton.disabled = true;
+            
+            setTimeout(() => {
+                submitButton.innerHTML = originalText;
+                submitButton.disabled = false;
+            }, 10000);
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCharacterCounter('Name', 'nameCounter', 100);
+            updateCharacterCounter('Description', 'descriptionCounter', 300);
+            updateColorPreview('@Model.Color');
+            updateLivePreview();
+            detectChanges();
+        });
+
+        // Warn user about unsaved changes before leaving
+        window.addEventListener('beforeunload', function(e) {
+            const currentValues = {
+                name: document.getElementById('Name').value,
+                description: document.getElementById('Description').value,
+                color: document.getElementById('Color').value
+            };
+
+            const hasChanges = 
+                currentValues.name !== originalValues.name ||
+                currentValues.description !== originalValues.description ||
+                currentValues.color !== originalValues.color;
+
+            if (hasChanges) {
+                e.preventDefault();
+                e.returnValue = 'Kaydedilmemiş değişiklikleriniz var. Sayfayı kapatmak istediğinizden emin misiniz?';
+                return e.returnValue;
+            }
+        });
+    </script>
+
+    <style>
+        .card {
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+            border: none;
+        }
+        
+        .form-control:focus, .form-control-color:focus {
+            border-color: #f6c23e;
+            box-shadow: 0 0 0 0.2rem rgba(246, 194, 62, 0.25);
+        }
+        
+        .form-control-color {
+            height: calc(2.25rem + 2px);
+            width: 100%;
+        }
+        
+        .text-warning {
+            color: #f6c23e !important;
+        }
+        
+        .text-danger {
+            color: #e74a3b !important;
+        }
+        
+        .alert {
+            border: none;
+            border-radius: 0.375rem;
+        }
+        
+        .badge {
+            font-size: 0.75rem;
+        }
+        
+        /* Color picker buttons hover effect */
+        .btn[onclick*="selectColor"]:hover {
+            transform: scale(1.1);
+            transition: all 0.3s ease;
+        }
+        
+        /* Live preview animations */
+        #livePreview, #modalPreviewCircle {
+            transition: all 0.3s ease;
+        }
+        
+        #previewBadge, #blogPreviewBadge, #badgePreview {
+            transition: background-color 0.3s ease;
+        }
+        
+        /* Form input animations */
+        .form-control, .form-select {
+            transition: all 0.3s ease;
+        }
+        
+        /* Color preview circle */
+        #colorPreview {
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+        }
+        
+        #colorPreview:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Change detection highlighting */
+        .changed {
+            background-color: #fff3cd !important;
+            border-color: #f6c23e !important;
+            transition: all 0.3s ease;
+        }
+        
+        /* Danger zone styling */
+        .card.border-danger {
+            border-color: #dc3545 !important;
+        }
+        
+        .bg-danger {
+            background-color: #dc3545 !important;
+        }
+        
+        /* Statistics styling */
+        .border-end {
+            border-right: 1px solid #dee2e6;
+        }
+        
+        /* Modal styling */
+        .modal-content {
+            border: none;
+            box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+        }
+    </style>
+}
