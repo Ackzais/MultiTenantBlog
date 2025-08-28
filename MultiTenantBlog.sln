@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiTenantBlog", "MultiTenantBlog\MultiTenantBlog.csproj", "{CEF1DFB2-D2E0-4B61-AB6A-46C5B6879C65}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CEF1DFB2-D2E0-4B61-AB6A-46C5B6879C65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CEF1DFB2-D2E0-4B61-AB6A-46C5B6879C65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CEF1DFB2-D2E0-4B61-AB6A-46C5B6879C65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CEF1DFB2-D2E0-4B61-AB6A-46C5B6879C65}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
