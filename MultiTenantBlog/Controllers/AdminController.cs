@@ -439,7 +439,7 @@ namespace MultiTenantBlog.Controllers
             if (post == null)
                 return Json(new { success = false, message = "Blog yazısı bulunamadı" });
 
-            // Yayın durumunu tersine çevir
+            // Yayın durumunu tersine çevir.
             post.IsPublished = !post.IsPublished;
             post.UpdatedDate = DateTime.Now;
 
